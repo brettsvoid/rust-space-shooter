@@ -1,5 +1,8 @@
 use macroquad::prelude::*;
+use macroquad_particles::{self as particles, ColorCurve, Emitter, EmitterConfig};
 use std::fs;
+
+mod particle_effects;
 
 const FRAGMENT_SHADER: &str = include_str!("starfield.frag");
 const VERTEX_SHADER: &str = include_str!("vertex.vert");
@@ -81,6 +84,7 @@ async fn main() {
         },
     )
     .unwrap();
+    let mut explosions: Vec<(Emitter, Vec2)> = vec![];
 
     loop {
         clear_background(DARKPURPLE);
@@ -108,6 +112,7 @@ async fn main() {
                 if is_key_pressed(KeyCode::Space) {
                     squares.clear();
                     bullets.clear();
+                    explosions.clear();
                     circle.x = screen_width() / 2.0;
                     circle.y = screen_height() / 2.0;
                     score = 0;
@@ -184,6 +189,8 @@ async fn main() {
                 squares.retain(|square| !square.collided);
                 bullets.retain(|bullet| !bullet.collided);
 
+                explosions.retain(|(explosion, _)| explosion.config.emitting);
+
                 // Check for collisions
                 if squares.iter().any(|square| circle.collides_with(square)) {
                     if score == high_score {
@@ -198,6 +205,13 @@ async fn main() {
                             square.collided = true;
                             score += square.size.round() as u32;
                             high_score = high_score.max(score);
+                            explosions.push((
+                                Emitter::new(EmitterConfig {
+                                    amount: square.size.round() as u32 * 2,
+                                    ..particle_effects::explosion()
+                                }),
+                                vec2(square.x, square.y),
+                            ));
                         }
                     }
                 }
@@ -215,6 +229,9 @@ async fn main() {
                         square.size,
                         GREEN,
                     );
+                }
+                for (explosion, coords) in explosions.iter_mut() {
+                    explosion.draw(*coords);
                 }
                 draw_text(
                     format!("Score: {}", score).as_str(),
