@@ -1,10 +1,14 @@
 use macroquad::audio::{load_sound, play_sound, play_sound_once, PlaySoundParams};
 use macroquad::experimental::animation::{AnimatedSprite, Animation};
 use macroquad::prelude::*;
+use macroquad::ui::{hash, root_ui, Skin};
 use macroquad_particles::{Emitter, EmitterConfig};
 use std::fs;
 
+use crate::resources::Resources;
+
 mod particle_effects;
+mod resources;
 
 const FRAGMENT_SHADER: &str = include_str!("starfield.frag");
 const VERTEX_SHADER: &str = include_str!("vertex.vert");
@@ -40,7 +44,7 @@ enum GameState {
 }
 
 #[macroquad::main("Space Shooter")]
-async fn main() {
+async fn main() -> Result<(), macroquad::Error> {
     const MOVE_SPEED: f32 = 200.0;
 
     // Seed the random number generator
@@ -84,30 +88,14 @@ async fn main() {
             ],
             ..Default::default()
         },
-    )
-    .unwrap();
+    )?;
     let mut explosions: Vec<(Emitter, Vec2)> = vec![];
 
     set_pc_assets_folder("assets");
-    let ship_texture: Texture2D = load_texture("ship.png").await.expect("Couldn't load file");
-    ship_texture.set_filter(FilterMode::Nearest);
-    let bullet_texture: Texture2D = load_texture("laser-bolts.png")
-        .await
-        .expect("Couldn't load file");
-    bullet_texture.set_filter(FilterMode::Nearest);
-    let explosion_texture: Texture2D = load_texture("explosion.png")
-        .await
-        .expect("Couldn't load file");
-    explosion_texture.set_filter(FilterMode::Nearest);
-    let enemy_small_texture: Texture2D = load_texture("enemy-small.png")
-        .await
-        .expect("Couldn't load file");
-    enemy_small_texture.set_filter(FilterMode::Nearest);
-    build_textures_atlas();
+    let resources = Resources::new().await?;
 
-    let theme_music = load_sound("8bit-spaceshooter.ogg").await.unwrap();
-    let sound_explosion = load_sound("explosion.wav").await.unwrap();
-    let sound_laser = load_sound("laser.wav").await.unwrap();
+    root_ui().push_skin(&resources.ui_skin);
+    let window_size = vec2(370.0, 320.0);
 
     let mut bullet_sprite = AnimatedSprite::new(
         16,
@@ -167,7 +155,7 @@ async fn main() {
     );
 
     play_sound(
-        &theme_music,
+        &resources.theme_music,
         PlaySoundParams {
             looped: true,
             volume: 1.,
@@ -197,23 +185,28 @@ async fn main() {
                 if is_key_pressed(KeyCode::Escape) {
                     std::process::exit(0);
                 }
-                if is_key_pressed(KeyCode::Space) {
-                    squares.clear();
-                    bullets.clear();
-                    explosions.clear();
-                    circle.x = screen_width() / 2.0;
-                    circle.y = screen_height() / 2.0;
-                    score = 0;
-                    game_state = GameState::Playing;
-                }
-                let text = "Press space";
-                let text_dimensions = measure_text(text, None, 50, 1.0);
-                draw_text(
-                    text,
-                    screen_width() / 2.0 - text_dimensions.width / 2.0,
-                    screen_height() / 2.0,
-                    50.0,
-                    WHITE,
+                root_ui().window(
+                    hash!(),
+                    vec2(
+                        screen_width() / 2.0 - window_size.x / 2.0,
+                        screen_height() / 2.0 - window_size.y / 2.0,
+                    ),
+                    window_size,
+                    |ui| {
+                        ui.label(vec2(80.0, -34.0), "Main Menu");
+                        if ui.button(vec2(65.0, 25.0), "Play") {
+                            squares.clear();
+                            bullets.clear();
+                            explosions.clear();
+                            circle.x = screen_width() / 2.0;
+                            circle.y = screen_height() / 2.0;
+                            score = 0;
+                            game_state = GameState::Playing;
+                        }
+                        if ui.button(vec2(65.0, 125.0), "Quit") {
+                            std::process::exit(0);
+                        }
+                    },
                 );
             }
             GameState::Playing => {
@@ -243,7 +236,7 @@ async fn main() {
                         size: 32.0,
                         collided: false,
                     });
-                    play_sound_once(&sound_laser);
+                    play_sound_once(&resources.sound_laser);
                 }
                 if is_key_pressed(KeyCode::Escape) {
                     game_state = GameState::Paused;
@@ -304,12 +297,12 @@ async fn main() {
                             explosions.push((
                                 Emitter::new(EmitterConfig {
                                     amount: square.size.round() as u32 * 4,
-                                    texture: Some(explosion_texture.clone()),
+                                    texture: Some(resources.explosion_texture.clone()),
                                     ..particle_effects::explosion()
                                 }),
                                 vec2(square.x, square.y),
                             ));
-                            play_sound_once(&sound_explosion);
+                            play_sound_once(&resources.sound_explosion);
                         }
                     }
                 }
@@ -318,7 +311,7 @@ async fn main() {
                 let bullet_frame = bullet_sprite.frame();
                 for bullet in &bullets {
                     draw_texture_ex(
-                        &bullet_texture,
+                        &resources.bullet_texture,
                         bullet.x - bullet.size / 2.0,
                         bullet.y - bullet.size / 2.0,
                         WHITE,
@@ -331,7 +324,7 @@ async fn main() {
                 }
                 let ship_frame = ship_sprite.frame();
                 draw_texture_ex(
-                    &ship_texture,
+                    &resources.ship_texture,
                     circle.x - ship_frame.dest_size.x,
                     circle.y - ship_frame.dest_size.y,
                     WHITE,
@@ -344,7 +337,7 @@ async fn main() {
                 let enemy_frame = enemy_small_sprite.frame();
                 for square in &squares {
                     draw_texture_ex(
-                        &enemy_small_texture,
+                        &resources.enemy_small_texture,
                         square.x - square.size / 2.0,
                         square.y - square.size / 2.0,
                         WHITE,
@@ -390,7 +383,7 @@ async fn main() {
                 );
             }
             GameState::GameOver => {
-                if is_key_pressed(KeyCode::Space) {
+                if is_key_pressed(KeyCode::Escape) {
                     game_state = GameState::MainMenu;
                 }
                 let text = "GAME OVER!";
