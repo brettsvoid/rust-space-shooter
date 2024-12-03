@@ -1,7 +1,8 @@
-use macroquad::audio::{load_sound, play_sound, play_sound_once, PlaySoundParams};
+use macroquad::audio::{play_sound, play_sound_once, PlaySoundParams};
 use macroquad::experimental::animation::{AnimatedSprite, Animation};
+use macroquad::experimental::collections::storage;
 use macroquad::prelude::*;
-use macroquad::ui::{hash, root_ui, Skin};
+use macroquad::ui::{hash, root_ui};
 use macroquad_particles::{Emitter, EmitterConfig};
 use std::fs;
 
@@ -92,7 +93,8 @@ async fn main() -> Result<(), macroquad::Error> {
     let mut explosions: Vec<(Emitter, Vec2)> = vec![];
 
     set_pc_assets_folder("assets");
-    let resources = Resources::new().await?;
+    Resources::load().await?;
+    let resources = storage::get::<Resources>();
 
     root_ui().push_skin(&resources.ui_skin);
     let window_size = vec2(370.0, 320.0);

@@ -1,4 +1,6 @@
 use macroquad::audio::{load_sound, Sound};
+use macroquad::experimental::collections::storage;
+use macroquad::experimental::coroutines::start_coroutine;
 use macroquad::prelude::*;
 use macroquad::ui::{root_ui, Skin};
 
@@ -73,5 +75,29 @@ impl Resources {
             sound_laser,
             ui_skin,
         })
+    }
+    pub async fn load() -> Result<(), macroquad::Error> {
+        let resources_loading = start_coroutine(async move {
+            let resources = Resources::new().await.unwrap();
+            storage::store(resources);
+        });
+
+        while !resources_loading.is_done() {
+            clear_background(BLACK);
+            let text = format!(
+                "Loading resources {}",
+                ".".repeat(((get_time() * 2.) as usize) % 4)
+            );
+            draw_text(
+                &text,
+                screen_width() / 2. - 160.,
+                screen_height() / 2.,
+                40.,
+                WHITE,
+            );
+            next_frame().await;
+        }
+
+        Ok(())
     }
 }
