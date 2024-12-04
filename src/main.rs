@@ -5,7 +5,6 @@ use macroquad::prelude::*;
 use macroquad::ui::{hash, root_ui};
 use macroquad_particles::{Emitter, EmitterConfig};
 use std::fs;
-use std::ops::Range;
 
 use crate::resources::Resources;
 use crate::settings::Settings;
@@ -48,6 +47,12 @@ enum GameState {
     GameOver,
 }
 
+enum StarfieldSpeed {
+    Stop,
+    Slow,
+    Fast,
+}
+
 #[macroquad::main("Space Shooter")]
 async fn main() -> Result<(), macroquad::Error> {
     const MOVE_SPEED: f32 = 200.0;
@@ -74,6 +79,7 @@ async fn main() -> Result<(), macroquad::Error> {
     let mut high_score: u32 = fs::read_to_string("highscore.dat")
         .map_or(Ok(0), |i| i.parse::<u32>())
         .unwrap_or(0);
+    let mut starfield_speed = StarfieldSpeed::Slow;
 
     let mut direction_modifier: f32 = 0.0;
     let render_target = render_target(320, 150);
@@ -86,12 +92,17 @@ async fn main() -> Result<(), macroquad::Error> {
         MaterialParams {
             uniforms: vec![
                 UniformDesc {
-                    name: "iResolution".to_owned(),
+                    name: "iResolution".to_string(),
                     uniform_type: UniformType::Float2,
                     array_count: 1,
                 },
                 UniformDesc {
-                    name: "direction_modifier".to_owned(),
+                    name: "direction_modifier".to_string(),
+                    uniform_type: UniformType::Float1,
+                    array_count: 1,
+                },
+                UniformDesc {
+                    name: "speed".to_string(),
                     uniform_type: UniformType::Float1,
                     array_count: 1,
                 },
@@ -176,10 +187,17 @@ async fn main() -> Result<(), macroquad::Error> {
     set_sound_volume(&resources.sound_laser, settings.sound_volume);
 
     loop {
-        clear_background(DARKPURPLE);
+        clear_background(BLACK);
+
+        let speed: f32 = match starfield_speed {
+            StarfieldSpeed::Stop => 0.0,
+            StarfieldSpeed::Slow => 1.0,
+            StarfieldSpeed::Fast => 3.0,
+        };
 
         material.set_uniform("iResolution", (screen_width(), screen_height()));
         material.set_uniform("direction_modifier", direction_modifier);
+        material.set_uniform("speed", speed);
         gl_use_material(&material);
         draw_texture_ex(
             &render_target.texture,
@@ -198,6 +216,7 @@ async fn main() -> Result<(), macroquad::Error> {
                 if is_key_pressed(KeyCode::Escape) {
                     std::process::exit(0);
                 }
+                starfield_speed = StarfieldSpeed::Slow;
                 root_ui().window(
                     hash!(),
                     vec2(
@@ -216,10 +235,10 @@ async fn main() -> Result<(), macroquad::Error> {
                             score = 0;
                             game_state = GameState::Playing;
                         }
-                        if ui.button(vec2(35.0, 90.0), "Settings") {
+                        if ui.button(vec2(35.0, 85.0), "Settings") {
                             game_state = GameState::Settings;
                         }
-                        if ui.button(vec2(80.0, 170.0), "Quit") {
+                        if ui.button(vec2(80.0, 160.0), "Quit") {
                             std::process::exit(0);
                         }
                     },
@@ -227,6 +246,7 @@ async fn main() -> Result<(), macroquad::Error> {
             }
             GameState::Playing => {
                 let delta_time = get_frame_time();
+                starfield_speed = StarfieldSpeed::Fast;
                 ship_sprite.set_animation(0);
                 if is_key_down(KeyCode::Right) || is_key_down(KeyCode::D) {
                     circle.x += MOVE_SPEED * delta_time;
@@ -388,6 +408,7 @@ async fn main() -> Result<(), macroquad::Error> {
                 if is_key_pressed(KeyCode::Space) {
                     game_state = GameState::Playing;
                 }
+                starfield_speed = StarfieldSpeed::Stop;
                 let text = "Paused";
                 let text_dimensions = measure_text(text, None, 50, 1.0);
                 draw_text(
@@ -402,6 +423,7 @@ async fn main() -> Result<(), macroquad::Error> {
                 if is_key_pressed(KeyCode::Escape) {
                     game_state = GameState::MainMenu;
                 }
+                starfield_speed = StarfieldSpeed::Slow;
                 root_ui().window(
                     hash!(),
                     vec2(
@@ -426,7 +448,7 @@ async fn main() -> Result<(), macroquad::Error> {
                             //play_sound_once(&resources.sound_laser);
                         }
 
-                        if ui.button(vec2(80.0, 170.0), "Back") {
+                        if ui.button(vec2(80.0, 160.0), "Back") {
                             game_state = GameState::MainMenu;
                         }
                     },
@@ -436,6 +458,7 @@ async fn main() -> Result<(), macroquad::Error> {
                 if is_key_pressed(KeyCode::Escape) {
                     game_state = GameState::MainMenu;
                 }
+                starfield_speed = StarfieldSpeed::Slow;
                 let text = "GAME OVER!";
                 let text_dimensions = measure_text(text, None, 50, 1.0);
                 draw_text(

@@ -1,4 +1,4 @@
-use macroquad::audio::{load_sound, set_sound_volume, Sound};
+use macroquad::audio::{load_sound, Sound};
 use macroquad::experimental::collections::storage;
 use macroquad::experimental::coroutines::start_coroutine;
 use macroquad::prelude::*;

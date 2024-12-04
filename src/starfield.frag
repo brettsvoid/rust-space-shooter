@@ -13,8 +13,9 @@ varying float iTime;
 
 uniform vec2 iResolution;
 uniform float direction_modifier;
+uniform float speed;
 
-#define NUM_LAYERS 4.
+#define NUM_LAYERS 2.
 
 mat2 Rot(float a) {
     float s = sin(a), c = cos(a);
@@ -55,7 +56,7 @@ vec3 StarLayer(vec2 uv) {
 
             float n = Hash21(id + offs); // random between 0 and 1
             float size = fract(n * 345.32);
-            float star = Star(gv - offs - vec2(n, fract(n * 42.)) + .5, smoothstep(.9, 1., size) * .6);
+            float star = Star(gv - offs - vec2(n, fract(n * 42.)) , smoothstep(.9, 1., size) * .6);
             vec3 color = sin(vec3(.8, .8, .8) * fract(n * 2345.2) * 123.2) * .5 + .5;
             color = color * vec3(0.25, 0.25, 0.20);
             star *= sin(iTime * 3. + n * 6.2831) * .5 + 1.;
@@ -70,8 +71,7 @@ void main()
     vec2 uv = (gl_FragCoord.xy - .5 * iResolution.xy) / iResolution.y;
     float t = iTime * .02;
 
-    float speed = 3.0;
-    vec2 direction = vec2(-0.25 + direction_modifier, -1.0) * speed;
+    vec2 direction = vec2(0.0, -1.0) * speed;
 
     uv += direction;
     vec3 col = vec3(0);
