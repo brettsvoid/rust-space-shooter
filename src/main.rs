@@ -1,15 +1,18 @@
-use macroquad::audio::{play_sound, play_sound_once, PlaySoundParams};
+use macroquad::audio::{play_sound, play_sound_once, set_sound_volume, PlaySoundParams};
 use macroquad::experimental::animation::{AnimatedSprite, Animation};
 use macroquad::experimental::collections::storage;
 use macroquad::prelude::*;
 use macroquad::ui::{hash, root_ui};
 use macroquad_particles::{Emitter, EmitterConfig};
 use std::fs;
+use std::ops::Range;
 
 use crate::resources::Resources;
+use crate::settings::Settings;
 
 mod particle_effects;
 mod resources;
+mod settings;
 
 const FRAGMENT_SHADER: &str = include_str!("starfield.frag");
 const VERTEX_SHADER: &str = include_str!("vertex.vert");
@@ -41,6 +44,7 @@ enum GameState {
     MainMenu,
     Playing,
     Paused,
+    Settings,
     GameOver,
 }
 
@@ -50,6 +54,11 @@ async fn main() -> Result<(), macroquad::Error> {
 
     // Seed the random number generator
     rand::srand(miniquad::date::now() as u64);
+
+    let mut settings = Settings::new();
+    // Sound seems way too loud by default
+    settings.set_music_volume(0.5);
+    settings.set_sound_volume(0.5);
 
     let mut squares = vec![];
     let mut bullets: Vec<Shape> = vec![];
@@ -160,9 +169,11 @@ async fn main() -> Result<(), macroquad::Error> {
         &resources.theme_music,
         PlaySoundParams {
             looped: true,
-            volume: 1.,
+            volume: settings.music_volume,
         },
     );
+    set_sound_volume(&resources.sound_explosion, settings.sound_volume);
+    set_sound_volume(&resources.sound_laser, settings.sound_volume);
 
     loop {
         clear_background(DARKPURPLE);
@@ -196,7 +207,7 @@ async fn main() -> Result<(), macroquad::Error> {
                     window_size,
                     |ui| {
                         ui.label(vec2(80.0, -34.0), "Main Menu");
-                        if ui.button(vec2(65.0, 25.0), "Play") {
+                        if ui.button(vec2(80.0, 10.0), "Play") {
                             squares.clear();
                             bullets.clear();
                             explosions.clear();
@@ -205,7 +216,10 @@ async fn main() -> Result<(), macroquad::Error> {
                             score = 0;
                             game_state = GameState::Playing;
                         }
-                        if ui.button(vec2(65.0, 125.0), "Quit") {
+                        if ui.button(vec2(35.0, 90.0), "Settings") {
+                            game_state = GameState::Settings;
+                        }
+                        if ui.button(vec2(80.0, 170.0), "Quit") {
                             std::process::exit(0);
                         }
                     },
@@ -382,6 +396,40 @@ async fn main() -> Result<(), macroquad::Error> {
                     screen_height() / 2.0,
                     50.0,
                     WHITE,
+                );
+            }
+            GameState::Settings => {
+                if is_key_pressed(KeyCode::Escape) {
+                    game_state = GameState::MainMenu;
+                }
+                root_ui().window(
+                    hash!(),
+                    vec2(
+                        screen_width() / 2.0 - window_size.x / 2.0,
+                        screen_height() / 2.0 - window_size.y / 2.0,
+                    ),
+                    window_size,
+                    |ui| {
+                        let prev_music_volume = settings.music_volume.clone();
+                        let prev_sound_volume = settings.sound_volume.clone();
+                        ui.label(vec2(80.0, -34.0), "Settings");
+                        ui.slider(hash!(), "Music", 0f32..1f32, &mut settings.music_volume);
+                        ui.slider(hash!(), "Effects", 0f32..1f32, &mut settings.sound_volume);
+
+                        if settings.music_volume != prev_music_volume {
+                            set_sound_volume(&resources.theme_music, settings.music_volume);
+                        }
+
+                        if settings.sound_volume != prev_sound_volume {
+                            set_sound_volume(&resources.sound_explosion, settings.sound_volume);
+                            set_sound_volume(&resources.sound_laser, settings.sound_volume);
+                            //play_sound_once(&resources.sound_laser);
+                        }
+
+                        if ui.button(vec2(80.0, 170.0), "Back") {
+                            game_state = GameState::MainMenu;
+                        }
+                    },
                 );
             }
             GameState::GameOver => {

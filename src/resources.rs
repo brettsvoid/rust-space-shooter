@@ -1,4 +1,4 @@
-use macroquad::audio::{load_sound, Sound};
+use macroquad::audio::{load_sound, set_sound_volume, Sound};
 use macroquad::experimental::collections::storage;
 use macroquad::experimental::coroutines::start_coroutine;
 use macroquad::prelude::*;
@@ -50,7 +50,7 @@ impl Resources {
             .margin(RectOffset::new(16.0, 0.0, -8.0, -8.0))
             .font(&font)?
             .text_color(WHITE)
-            .font_size(64)
+            .font_size(48)
             .build();
         let label_style = root_ui()
             .style_builder()
