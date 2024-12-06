@@ -216,6 +216,9 @@ async fn main() -> Result<(), macroquad::Error> {
                 if is_key_pressed(KeyCode::Escape) {
                     std::process::exit(0);
                 }
+                if is_key_pressed(KeyCode::P) {
+                    game_state = GameState::Playing;
+                }
                 starfield_speed = StarfieldSpeed::Slow;
                 root_ui().window(
                     hash!(),
@@ -408,14 +411,38 @@ async fn main() -> Result<(), macroquad::Error> {
                 if is_key_pressed(KeyCode::Space) {
                     game_state = GameState::Playing;
                 }
+                if is_key_pressed(KeyCode::Escape) {
+                    game_state = GameState::MainMenu;
+                }
                 starfield_speed = StarfieldSpeed::Stop;
-                let text = "Paused";
-                let text_dimensions = measure_text(text, None, 50, 1.0);
+                let paused_text = "Paused";
+                let paused_dimensions = measure_text(paused_text, None, 50, 1.0);
                 draw_text(
-                    text,
-                    screen_width() / 2.0 - text_dimensions.width / 2.0,
-                    screen_height() / 2.0,
+                    paused_text,
+                    screen_width() / 2.0 - paused_dimensions.width / 2.0,
+                    screen_height() / 2.0 - 50.0,
                     50.0,
+                    WHITE,
+                );
+
+                let space_text = "Press SPACE to resume";
+                let space_dimensions = measure_text(space_text, None, 20, 1.0);
+                let space_height = screen_height() / 2.0 - 10.0;
+                draw_text(
+                    space_text,
+                    screen_width() / 2.0 - space_dimensions.width / 2.0,
+                    space_height,
+                    20.0,
+                    WHITE,
+                );
+
+                let escape_text = "Press ESC to return to main menu";
+                let escape_dimensions = measure_text(escape_text, None, 20, 1.0);
+                draw_text(
+                    escape_text,
+                    screen_width() / 2.0 - escape_dimensions.width / 2.0,
+                    space_height + 30.0,
+                    20.0,
                     WHITE,
                 );
             }
