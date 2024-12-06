@@ -15,7 +15,7 @@ uniform vec2 iResolution;
 uniform float direction_modifier;
 uniform float speed;
 
-#define NUM_LAYERS 2.
+#define NUM_LAYERS 4.
 
 mat2 Rot(float a) {
     float s = sin(a), c = cos(a);

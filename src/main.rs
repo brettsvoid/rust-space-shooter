@@ -332,7 +332,7 @@ async fn main() -> Result<(), macroquad::Error> {
                             high_score = high_score.max(score);
                             explosions.push((
                                 Emitter::new(EmitterConfig {
-                                    amount: square.size.round() as u32 * 4,
+                                    amount: square.size.round() as u32 * 1,
                                     texture: Some(resources.explosion_texture.clone()),
                                     ..particle_effects::explosion()
                                 }),
