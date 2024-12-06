@@ -16,6 +16,8 @@ mod settings;
 const FRAGMENT_SHADER: &str = include_str!("starfield.frag");
 const VERTEX_SHADER: &str = include_str!("vertex.vert");
 
+const SHOT_COOLDOWN: f32 = 0.2;
+
 struct Shape {
     size: f32,
     speed: f32,
@@ -186,6 +188,8 @@ async fn main() -> Result<(), macroquad::Error> {
     set_sound_volume(&resources.sound_explosion, settings.sound_volume);
     set_sound_volume(&resources.sound_laser, settings.sound_volume);
 
+    let mut last_shot = 0.0;
+
     loop {
         clear_background(BLACK);
 
@@ -218,6 +222,12 @@ async fn main() -> Result<(), macroquad::Error> {
                 }
                 if is_key_pressed(KeyCode::P) {
                     game_state = GameState::Playing;
+                }
+                if is_key_pressed(KeyCode::S) {
+                    game_state = GameState::Settings;
+                }
+                if is_key_pressed(KeyCode::Q) {
+                    std::process::exit(0);
                 }
                 starfield_speed = StarfieldSpeed::Slow;
                 root_ui().window(
@@ -267,19 +277,25 @@ async fn main() -> Result<(), macroquad::Error> {
                 if is_key_down(KeyCode::Up) || is_key_down(KeyCode::W) {
                     circle.y -= MOVE_SPEED * delta_time
                 }
-                if is_key_pressed(KeyCode::Space) {
-                    bullets.push(Shape {
-                        x: circle.x,
-                        y: circle.y - 24.0,
-                        speed: circle.speed * 2.0,
-                        size: 32.0,
-                        collided: false,
-                    });
-                    play_sound_once(&resources.sound_laser);
+                if is_key_down(KeyCode::Space) {
+                    if last_shot <= 0.0 {
+                        bullets.push(Shape {
+                            x: circle.x,
+                            y: circle.y - 24.0,
+                            speed: circle.speed * 2.0,
+                            size: 32.0,
+                            collided: false,
+                        });
+                        play_sound_once(&resources.sound_laser);
+                        last_shot = SHOT_COOLDOWN;
+                    }
                 }
                 if is_key_pressed(KeyCode::Escape) {
                     game_state = GameState::Paused;
                 }
+
+                // Cooldowns
+                last_shot -= delta_time;
 
                 // Clamp X and Y to be within the screen
                 circle.x = clamp(circle.x, 0.0, screen_width());
