@@ -1,627 +1,490 @@
-use enemies::Enemies;
-use game_state::GameState;
-use macroquad::audio::{play_sound, set_sound_volume, PlaySoundParams};
-use macroquad::experimental::animation::{AnimatedSprite, Animation};
-use macroquad::experimental::collections::storage;
-use macroquad::prelude::*;
-use macroquad::ui::{hash, root_ui};
-use macroquad_particles::{Emitter, EmitterConfig};
-use std::fs;
-use throttler::Throttler;
+use bevy::{
+    math::bounding::{Aabb2d, BoundingCircle, BoundingVolume, IntersectsVolume},
+    prelude::*,
+};
 
-use crate::resources::Resources;
-use crate::settings::Settings;
+mod stepping;
 
-mod enemies;
-mod game_state;
-mod particle_effects;
-mod resources;
-mod settings;
-mod throttler;
+// These constants are defined in `Transform` units.
+// Using the default 2D camera they correspond 1:1 with screen pixels.
+const PADDLE_SIZE: Vec2 = Vec2::new(120.0, 20.0);
+const PLAYER_SHIP_SIZE: Vec2 = Vec2::new(32.0, 32.0);
+const GAP_BETWEEN_PADDLE_AND_FLOOR: f32 = 60.0;
+const PADDLE_SPEED: f32 = 500.0;
+const PLAYER_SHIP_SPEED: f32 = 500.0;
+// How close can the paddle get to the wall
+const PADDLE_PADDING: f32 = 10.0;
+const PLAYER_SHIP_PADDING: f32 = 0.0;
 
-const FRAGMENT_SHADER: &str = include_str!("starfield.frag");
-const VERTEX_SHADER: &str = include_str!("vertex.vert");
+// We set the z-value of the ball to 1 so it renders on top in the case of overlapping sprites.
+const BALL_STARTING_POSITION: Vec3 = Vec3::new(0.0, -50.0, 1.0);
+const BALL_DIAMETER: f32 = 30.;
+const BALL_SPEED: f32 = 400.0;
+const INITIAL_BALL_DIRECTION: Vec2 = Vec2::new(0.5, -0.5);
 
-struct Shape {
-    size: f32,
-    speed: f32,
-    x: f32,
-    y: f32,
-    collided: bool,
+const WALL_THICKNESS: f32 = 10.0;
+// x coordinates
+const LEFT_WALL: f32 = -450.;
+const RIGHT_WALL: f32 = 450.;
+// y coordinates
+const BOTTOM_WALL: f32 = -300.;
+const TOP_WALL: f32 = 300.;
+
+const BRICK_SIZE: Vec2 = Vec2::new(100., 30.);
+// These values are exact
+const GAP_BETWEEN_PADDLE_AND_BRICKS: f32 = 270.0;
+const GAP_BETWEEN_BRICKS: f32 = 5.0;
+// These values are lower bounds, as the number of bricks is computed
+const GAP_BETWEEN_BRICKS_AND_CEILING: f32 = 20.0;
+const GAP_BETWEEN_BRICKS_AND_SIDES: f32 = 20.0;
+
+const SCOREBOARD_FONT_SIZE: f32 = 33.0;
+const SCOREBOARD_TEXT_PADDING: Val = Val::Px(5.0);
+
+const BACKGROUND_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
+const PADDLE_COLOR: Color = Color::srgb(0.3, 0.3, 0.7);
+const BALL_COLOR: Color = Color::srgb(1.0, 0.5, 0.5);
+const BRICK_COLOR: Color = Color::srgb(0.5, 0.5, 1.0);
+const WALL_COLOR: Color = Color::srgb(0.8, 0.8, 0.8);
+const TEXT_COLOR: Color = Color::srgb(0.5, 0.5, 1.0);
+const SCORE_COLOR: Color = Color::srgb(1.0, 0.5, 0.5);
+
+fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins)
+        .add_plugins(
+            stepping::SteppingPlugin::default()
+                .add_schedule(Update)
+                .add_schedule(FixedUpdate)
+                .at(Val::Percent(35.0), Val::Percent(50.0)),
+        )
+        .insert_resource(Score(0))
+        .insert_resource(ClearColor(BACKGROUND_COLOR))
+        .add_event::<CollisionEvent>()
+        .add_systems(Startup, setup)
+        // Add our gameplay simulation systems to the fixed timestep schedule
+        // which runs at 64 Hz by default
+        .add_systems(
+            FixedUpdate,
+            (
+                apply_velocity,
+                //move_paddle,
+                move_player_ship,
+                //check_for_collisions,
+                //play_collision_sound,
+            )
+                // `chain`ing systems together runs them in order
+                .chain(),
+        )
+        .add_systems(Update, update_scoreboard)
+        .run();
 }
 
-impl Shape {
-    fn collides_with(&self, other: &Self) -> bool {
-        self.rect().overlaps(&other.rect())
+#[derive(Component)]
+struct PlayerShip;
+
+#[derive(Component)]
+struct EnemyShip;
+
+#[derive(Component)]
+struct Bullet;
+
+#[derive(Component)]
+struct Paddle;
+
+#[derive(Component)]
+struct Ball;
+
+#[derive(Component, Deref, DerefMut)]
+struct Velocity(Vec2);
+
+#[derive(Component)]
+struct Collider;
+
+#[derive(Event, Default)]
+struct CollisionEvent;
+
+#[derive(Component)]
+struct Brick;
+
+#[derive(Resource, Deref)]
+struct CollisionSound(Handle<AudioSource>);
+
+// This bundle is a collection of the components that define a "wall" in our game
+#[derive(Bundle)]
+struct WallBundle {
+    // You can nest bundles inside of other bundles like this
+    // Allowing you to compose their functionality
+    sprite: Sprite,
+    transform: Transform,
+    collider: Collider,
+}
+
+/// Which side of the arena is this wall located on?
+enum WallLocation {
+    Left,
+    Right,
+    Bottom,
+    Top,
+}
+
+impl WallLocation {
+    /// Location of the *center* of the wall, used in `transform.translation()`
+    fn position(&self) -> Vec2 {
+        match self {
+            WallLocation::Left => Vec2::new(LEFT_WALL, 0.),
+            WallLocation::Right => Vec2::new(RIGHT_WALL, 0.),
+            WallLocation::Bottom => Vec2::new(0., BOTTOM_WALL),
+            WallLocation::Top => Vec2::new(0., TOP_WALL),
+        }
     }
 
-    fn rect(&self) -> Rect {
-        Rect {
-            x: self.x - self.size / 2.0,
-            y: self.y - self.size / 2.0,
-            w: self.size,
-            h: self.size,
+    /// (x, y) dimensions of the wall, used in `transform.scale()`
+    fn size(&self) -> Vec2 {
+        let arena_height = TOP_WALL - BOTTOM_WALL;
+        let arena_width = RIGHT_WALL - LEFT_WALL;
+        // Make sure we haven't messed up our constants
+        assert!(arena_height > 0.0);
+        assert!(arena_width > 0.0);
+
+        match self {
+            WallLocation::Left | WallLocation::Right => {
+                Vec2::new(WALL_THICKNESS, arena_height + WALL_THICKNESS)
+            }
+            WallLocation::Bottom | WallLocation::Top => {
+                Vec2::new(arena_width + WALL_THICKNESS, WALL_THICKNESS)
+            }
         }
     }
 }
 
-enum StarfieldSpeed {
-    Stop,
-    Slow,
-    Fast,
+impl WallBundle {
+    // This "builder method" allows us to reuse logic across our wall entities,
+    // making our code easier to read and less prone to bugs when we change the logic
+    fn new(location: WallLocation) -> WallBundle {
+        WallBundle {
+            sprite: Sprite::from_color(WALL_COLOR, Vec2::ONE),
+            transform: Transform {
+                // We need to convert our Vec2 into a Vec3, by giving it a z-coordinate
+                // This is used to determine the order of our sprites
+                translation: location.position().extend(0.0),
+                // The z-scale of 2D objects must always be 1.0,
+                // or their ordering will be affected in surprising ways.
+                // See https://github.com/bevyengine/bevy/issues/4149
+                scale: location.size().extend(1.0),
+                ..default()
+            },
+            collider: Collider,
+        }
+    }
 }
 
-fn get_column_x(size: f32) -> f32 {
-    let gutter = 4.0;
-    let width = screen_width();
-    let column_count = (width / (size + gutter)) as u32;
-    let gutter_count = column_count - 1;
-    let content_width = column_count as f32 * size + gutter_count as f32 * gutter;
-    let margin = (width - content_width) / 2.0;
-    let column = rand::gen_range(0, column_count);
+// This resource tracks the game's score
+#[derive(Resource, Deref, DerefMut)]
+struct Score(usize);
 
-    (column as f32 * (size + gutter)) + size / 2.0 + margin
+#[derive(Component)]
+struct ScoreboardUi;
+
+// Add the game's entities to our world
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
+) {
+    // Camera
+    commands.spawn(Camera2d);
+
+    // Sound
+    let ball_collision_sound = asset_server.load("sounds/breakout_collision.ogg");
+    commands.insert_resource(CollisionSound(ball_collision_sound));
+
+    // Paddle
+    let paddle_y = BOTTOM_WALL + GAP_BETWEEN_PADDLE_AND_FLOOR;
+
+    commands.spawn((
+        Sprite::from_color(PADDLE_COLOR, Vec2::ONE),
+        Transform {
+            translation: Vec3::new(0.0, paddle_y, 0.0),
+            scale: PLAYER_SHIP_SIZE.extend(1.0),
+            ..default()
+        },
+        PlayerShip,
+        Collider,
+    ));
+
+    // Ball
+    // commands.spawn((
+    //     Mesh2d(meshes.add(Circle::default())),
+    //     MeshMaterial2d(materials.add(BALL_COLOR)),
+    //     Transform::from_translation(BALL_STARTING_POSITION)
+    //         .with_scale(Vec2::splat(BALL_DIAMETER).extend(1.)),
+    //     Ball,
+    //     Velocity(INITIAL_BALL_DIRECTION.normalize() * BALL_SPEED),
+    // ));
+
+    // Scoreboard
+    commands
+        .spawn((
+            Text::new("Score: "),
+            TextFont {
+                font_size: SCOREBOARD_FONT_SIZE,
+                ..default()
+            },
+            TextColor(TEXT_COLOR),
+            ScoreboardUi,
+            Node {
+                position_type: PositionType::Absolute,
+                top: SCOREBOARD_TEXT_PADDING,
+                left: SCOREBOARD_TEXT_PADDING,
+                ..default()
+            },
+        ))
+        .with_child((
+            TextSpan::default(),
+            TextFont {
+                font_size: SCOREBOARD_FONT_SIZE,
+                ..default()
+            },
+            TextColor(SCORE_COLOR),
+        ));
+
+    // Walls
+    // commands.spawn(WallBundle::new(WallLocation::Left));
+    // commands.spawn(WallBundle::new(WallLocation::Right));
+    // commands.spawn(WallBundle::new(WallLocation::Bottom));
+    // commands.spawn(WallBundle::new(WallLocation::Top));
+
+    // Bricks
+    let total_width_of_bricks = (RIGHT_WALL - LEFT_WALL) - 2. * GAP_BETWEEN_BRICKS_AND_SIDES;
+    let bottom_edge_of_bricks = paddle_y + GAP_BETWEEN_PADDLE_AND_BRICKS;
+    let total_height_of_bricks = TOP_WALL - bottom_edge_of_bricks - GAP_BETWEEN_BRICKS_AND_CEILING;
+
+    assert!(total_width_of_bricks > 0.0);
+    assert!(total_height_of_bricks > 0.0);
+
+    // Given the space available, compute how many rows and columns of bricks we can fit
+    let n_columns = (total_width_of_bricks / (BRICK_SIZE.x + GAP_BETWEEN_BRICKS)).floor() as usize;
+    let n_rows = (total_height_of_bricks / (BRICK_SIZE.y + GAP_BETWEEN_BRICKS)).floor() as usize;
+    let n_vertical_gaps = n_columns - 1;
+
+    // Because we need to round the number of columns,
+    // the space on the top and sides of the bricks only captures a lower bound, not an exact value
+    let center_of_bricks = (LEFT_WALL + RIGHT_WALL) / 2.0;
+    let left_edge_of_bricks = center_of_bricks
+        // Space taken up by the bricks
+        - (n_columns as f32 / 2.0 * BRICK_SIZE.x)
+        // Space taken up by the gaps
+        - n_vertical_gaps as f32 / 2.0 * GAP_BETWEEN_BRICKS;
+
+    // In Bevy, the `translation` of an entity describes the center point,
+    // not its bottom-left corner
+    let offset_x = left_edge_of_bricks + BRICK_SIZE.x / 2.;
+    let offset_y = bottom_edge_of_bricks + BRICK_SIZE.y / 2.;
+
+    for row in 0..n_rows {
+        for column in 0..n_columns {
+            let brick_position = Vec2::new(
+                offset_x + column as f32 * (BRICK_SIZE.x + GAP_BETWEEN_BRICKS),
+                offset_y + row as f32 * (BRICK_SIZE.y + GAP_BETWEEN_BRICKS),
+            );
+
+            // brick
+            commands.spawn((
+                Sprite {
+                    color: BRICK_COLOR,
+                    ..default()
+                },
+                Transform {
+                    translation: brick_position.extend(0.0),
+                    scale: Vec3::new(BRICK_SIZE.x, BRICK_SIZE.y, 1.0),
+                    ..default()
+                },
+                Brick,
+                Collider,
+            ));
+        }
+    }
 }
 
-#[macroquad::main("Space Shooter")]
-async fn main() -> Result<(), macroquad::Error> {
-    const MOVE_SPEED: f32 = 200.0;
+// fn move_paddle(
+//     keyboard_input: Res<ButtonInput<KeyCode>>,
+//     mut paddle_transform: Single<&mut Transform, With<Paddle>>,
+//     time: Res<Time>,
+// ) {
+//     let mut direction = 0.0;
+//
+//     if keyboard_input.pressed(KeyCode::ArrowLeft) {
+//         direction -= 1.0;
+//     }
+//
+//     if keyboard_input.pressed(KeyCode::ArrowRight) {
+//         direction += 1.0;
+//     }
+//
+//     // Calculate the new horizontal paddle position based on player input
+//     let new_paddle_position =
+//         paddle_transform.translation.x + direction * PADDLE_SPEED * time.delta_secs();
+//
+//     // Update the paddle position,
+//     // making sure it doesn't cause the paddle to leave the arena
+//     let left_bound = LEFT_WALL + WALL_THICKNESS / 2.0 + PADDLE_SIZE.x / 2.0 + PADDLE_PADDING;
+//     let right_bound = RIGHT_WALL - WALL_THICKNESS / 2.0 - PADDLE_SIZE.x / 2.0 - PADDLE_PADDING;
+//
+//     paddle_transform.translation.x = new_paddle_position.clamp(left_bound, right_bound);
+// }
 
-    // Seed the random number generator
-    rand::srand(miniquad::date::now() as u64);
+fn move_player_ship(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut ship_transform: Single<&mut Transform, With<PlayerShip>>,
+    time: Res<Time>,
+    window: Single<&Window>,
+) {
+    let mut x = 0.0;
+    let mut y = 0.0;
 
-    let mut settings = Settings::new();
-    // Sound seems way too loud by default
-    settings.set_music_volume(0.5);
-    settings.set_effect_volume(0.5);
+    if keyboard_input.pressed(KeyCode::ArrowLeft) || keyboard_input.pressed(KeyCode::KeyA) {
+        x -= 1.0;
+    }
 
-    let mut enemies = Enemies::new();
-    let mut bullets: Vec<Shape> = vec![];
-    let mut circle = Shape {
-        size: 32.0,
-        speed: MOVE_SPEED,
-        x: screen_width() / 2.0,
-        y: screen_height() / 2.0,
-        collided: false,
-    };
-    let mut game_state = GameState::MainMenu;
-    let mut score: u32 = 0;
-    let mut high_score: u32 = fs::read_to_string("highscore.dat")
-        .map_or(Ok(0), |i| i.parse::<u32>())
-        .unwrap_or(0);
-    let mut starfield_speed = StarfieldSpeed::Slow;
+    if keyboard_input.pressed(KeyCode::ArrowRight) || keyboard_input.pressed(KeyCode::KeyD) {
+        x += 1.0;
+    }
 
-    let mut direction_modifier: f32 = 0.0;
-    let render_target = render_target(320, 150);
-    render_target.texture.set_filter(FilterMode::Nearest);
-    let material = load_material(
-        ShaderSource::Glsl {
-            vertex: VERTEX_SHADER,
-            fragment: FRAGMENT_SHADER,
-        },
-        MaterialParams {
-            uniforms: vec![
-                UniformDesc {
-                    name: "iResolution".to_string(),
-                    uniform_type: UniformType::Float2,
-                    array_count: 1,
-                },
-                UniformDesc {
-                    name: "direction_modifier".to_string(),
-                    uniform_type: UniformType::Float1,
-                    array_count: 1,
-                },
-                UniformDesc {
-                    name: "speed".to_string(),
-                    uniform_type: UniformType::Float1,
-                    array_count: 1,
-                },
-            ],
-            ..Default::default()
-        },
-    )?;
-    let mut explosions: Vec<(Emitter, Vec2)> = vec![];
+    if keyboard_input.pressed(KeyCode::ArrowUp) || keyboard_input.pressed(KeyCode::KeyW) {
+        y += 1.0;
+    }
 
-    set_pc_assets_folder("assets");
-    Resources::load().await?;
-    let resources = storage::get::<Resources>();
+    if keyboard_input.pressed(KeyCode::ArrowDown) || keyboard_input.pressed(KeyCode::KeyS) {
+        y -= 1.0;
+    }
 
-    root_ui().push_skin(&resources.ui_skin);
-    let window_size = vec2(370.0, 320.0);
+    // Calculate the new horizontal ship position based on player input
+    let new_paddle_x = ship_transform.translation.x + x * PLAYER_SHIP_SPEED * time.delta_secs();
+    let new_paddle_y = ship_transform.translation.y + y * PLAYER_SHIP_SPEED * time.delta_secs();
 
-    let mut bullet_sprite = AnimatedSprite::new(
-        16,
-        16,
-        &[
-            Animation {
-                name: "bullet".to_string(),
-                row: 0,
-                frames: 2,
-                fps: 12,
-            },
-            Animation {
-                name: "bolt".to_string(),
-                row: 1,
-                frames: 2,
-                fps: 12,
-            },
-        ],
-        true,
-    );
-    bullet_sprite.set_animation(1);
-    let mut ship_sprite = AnimatedSprite::new(
-        16,
-        24,
-        &[
-            Animation {
-                name: "idle".to_string(),
-                row: 0,
-                frames: 2,
-                fps: 12,
-            },
-            Animation {
-                name: "left".to_string(),
-                row: 2,
-                frames: 2,
-                fps: 12,
-            },
-            Animation {
-                name: "right".to_string(),
-                row: 4,
-                frames: 2,
-                fps: 12,
-            },
-        ],
-        true,
-    );
+    // Update the ship position,
+    // making sure it doesn't cause the ship to leave the viewport
+    let left_bound = -window.width() / 2.0 + PLAYER_SHIP_SIZE.x / 2.0 + PLAYER_SHIP_PADDING;
+    let right_bound = window.width() / 2.0 - PLAYER_SHIP_SIZE.x / 2.0 - PLAYER_SHIP_PADDING;
+    let bottom_bound = window.height() / 2.0 - PLAYER_SHIP_SIZE.y / 2.0 - PLAYER_SHIP_PADDING;
+    let top_bound = -window.height() / 2.0 + PLAYER_SHIP_SIZE.y / 2.0 + PLAYER_SHIP_PADDING;
 
-    play_sound(
-        &resources.theme_music,
-        PlaySoundParams {
-            looped: true,
-            volume: settings.music_volume,
-        },
-    );
-    set_sound_volume(&resources.sound_explosion, settings.effect_volume);
-    set_sound_volume(&resources.sound_laser, settings.effect_volume);
+    ship_transform.translation.x = new_paddle_x.clamp(left_bound, right_bound);
+    ship_transform.translation.y = new_paddle_y.clamp(top_bound, bottom_bound);
+}
 
-    let mut last_shot_throttler = Throttler::new(0.2);
-    let mut settings_sound_effect_throttler = Throttler::new(0.2);
-    let small_enemy_size = 32.0;
-    let medium_enemy_size = 48.0;
-    let large_enemy_size = 64.0;
+fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
+    for (mut transform, velocity) in &mut query {
+        transform.translation.x += velocity.x * time.delta_secs();
+        transform.translation.y += velocity.y * time.delta_secs();
+    }
+}
 
-    loop {
-        clear_background(BLACK);
+fn update_scoreboard(
+    score: Res<Score>,
+    score_root: Single<Entity, (With<ScoreboardUi>, With<Text>)>,
+    mut writer: TextUiWriter,
+) {
+    *writer.text(*score_root, 1) = score.to_string();
+}
 
-        let speed: f32 = match starfield_speed {
-            StarfieldSpeed::Stop => 0.0,
-            StarfieldSpeed::Slow => 1.0,
-            StarfieldSpeed::Fast => 3.0,
-        };
+fn check_for_collisions(
+    mut commands: Commands,
+    mut score: ResMut<Score>,
+    ball_query: Single<(&mut Velocity, &Transform), With<Ball>>,
+    collider_query: Query<(Entity, &Transform, Option<&Brick>), With<Collider>>,
+    mut collision_events: EventWriter<CollisionEvent>,
+) {
+    let (mut ball_velocity, ball_transform) = ball_query.into_inner();
 
-        material.set_uniform("iResolution", (screen_width(), screen_height()));
-        material.set_uniform("direction_modifier", direction_modifier);
-        material.set_uniform("speed", speed);
-        gl_use_material(&material);
-        draw_texture_ex(
-            &render_target.texture,
-            0.,
-            0.,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(screen_width(), screen_height())),
-                ..Default::default()
-            },
+    for (collider_entity, collider_transform, maybe_brick) in &collider_query {
+        let collision = ball_collision(
+            BoundingCircle::new(ball_transform.translation.truncate(), BALL_DIAMETER / 2.),
+            Aabb2d::new(
+                collider_transform.translation.truncate(),
+                collider_transform.scale.truncate() / 2.,
+            ),
         );
-        gl_use_default_material();
 
-        match game_state {
-            GameState::MainMenu => {
-                if is_key_pressed(KeyCode::Escape) {
-                    std::process::exit(0);
-                }
-                if is_key_pressed(KeyCode::P) {
-                    game_state = GameState::Playing;
-                }
-                if is_key_pressed(KeyCode::S) {
-                    game_state = GameState::Settings;
-                }
-                if is_key_pressed(KeyCode::Q) {
-                    std::process::exit(0);
-                }
-                starfield_speed = StarfieldSpeed::Slow;
-                root_ui().window(
-                    hash!(),
-                    vec2(
-                        screen_width() / 2.0 - window_size.x / 2.0,
-                        screen_height() / 2.0 - window_size.y / 2.0,
-                    ),
-                    window_size,
-                    |ui| {
-                        ui.label(vec2(80.0, -34.0), "Main Menu");
-                        if ui.button(vec2(80.0, 10.0), "Play") {
-                            enemies.clear();
-                            bullets.clear();
-                            explosions.clear();
-                            circle.x = screen_width() / 2.0;
-                            circle.y = screen_height() / 2.0;
-                            score = 0;
-                            game_state = GameState::Playing;
-                        }
-                        if ui.button(vec2(35.0, 85.0), "Settings") {
-                            game_state = GameState::Settings;
-                        }
-                        if ui.button(vec2(80.0, 160.0), "Quit") {
-                            std::process::exit(0);
-                        }
-                    },
-                );
+        if let Some(collision) = collision {
+            // Sends a collision event so that other systems can react to the collision
+            collision_events.send_default();
+
+            // Bricks should be despawned and increment the scoreboard on collision
+            if maybe_brick.is_some() {
+                commands.entity(collider_entity).despawn();
+                **score += 1;
             }
-            GameState::Playing => {
-                let delta = get_frame_time();
-                starfield_speed = StarfieldSpeed::Fast;
-                ship_sprite.set_animation(0);
-                last_shot_throttler.update(delta);
-                if is_key_down(KeyCode::Right) || is_key_down(KeyCode::D) {
-                    circle.x += MOVE_SPEED * delta;
-                    direction_modifier += 0.05 * delta;
-                    ship_sprite.set_animation(2);
-                }
-                if is_key_down(KeyCode::Left) || is_key_down(KeyCode::A) {
-                    circle.x -= MOVE_SPEED * delta;
-                    direction_modifier -= 0.05 * delta;
-                    ship_sprite.set_animation(1);
-                }
-                if is_key_down(KeyCode::Down) || is_key_down(KeyCode::S) {
-                    circle.y += MOVE_SPEED * delta;
-                }
-                if is_key_down(KeyCode::Up) || is_key_down(KeyCode::W) {
-                    circle.y -= MOVE_SPEED * delta
-                }
-                if is_key_down(KeyCode::Space) {
-                    last_shot_throttler.run_action(|| {
-                        bullets.push(Shape {
-                            x: circle.x,
-                            y: circle.y - 24.0,
-                            speed: circle.speed * 2.0,
-                            size: 32.0,
-                            collided: false,
-                        });
-                        play_sound(
-                            &resources.sound_laser,
-                            PlaySoundParams {
-                                looped: false,
-                                volume: settings.effect_volume,
-                            },
-                        );
-                    })
-                }
-                if is_key_pressed(KeyCode::Escape) {
-                    game_state = GameState::Paused;
-                }
 
-                // Clamp X and Y to be within the screen
-                circle.x = clamp(circle.x, 0.0, screen_width());
-                circle.y = clamp(circle.y, 0.0, screen_height());
+            // Reflect the ball's velocity when it collides
+            let mut reflect_x = false;
+            let mut reflect_y = false;
 
-                // Generate a new enemy
-                if rand::gen_range(0, 25) <= 1 && enemies.small.len() < 10 {
-                    let size = small_enemy_size;
-                    enemies.small.push(Shape {
-                        size,
-                        speed: 100.0,
-                        x: get_column_x(size),
-                        y: -size,
-                        collided: false,
-                    });
-                }
-                if rand::gen_range(0, 75) <= 1 && enemies.medium.len() < 4 {
-                    let size = medium_enemy_size;
-                    enemies.medium.push(Shape {
-                        size,
-                        speed: 80.0,
-                        x: get_column_x(size),
-                        y: -size,
-                        collided: false,
-                    });
-                }
-                if rand::gen_range(0, 120) <= 1 && enemies.large.len() < 1 {
-                    let size = large_enemy_size;
-                    enemies.large.push(Shape {
-                        size,
-                        speed: 50.0,
-                        x: get_column_x(size),
-                        y: -size,
-                        collided: false,
-                    });
-                }
-
-                // Movement
-                enemies.movement(delta);
-                for bullet in &mut bullets {
-                    bullet.y -= bullet.speed * delta;
-                }
-
-                ship_sprite.update();
-                bullet_sprite.update();
-                enemies.update();
-
-                // Remove shapes outside of screen
-                enemies
-                    .small
-                    .retain(|enemy| enemy.y < screen_height() + enemy.size);
-                enemies
-                    .medium
-                    .retain(|enemy| enemy.y < screen_height() + enemy.size);
-                enemies
-                    .large
-                    .retain(|enemy| enemy.y < screen_height() + enemy.size);
-                bullets.retain(|bullet| bullet.y > 0.0 - bullet.size / 2.0);
-
-                // Remove collided shapes
-                enemies.small.retain(|enemy| !enemy.collided);
-                enemies.medium.retain(|enemy| !enemy.collided);
-                enemies.large.retain(|enemy| !enemy.collided);
-                bullets.retain(|bullet| !bullet.collided);
-
-                explosions.retain(|(explosion, _)| explosion.config.emitting);
-
-                // Check for collisions
-                if enemies
-                    .small
-                    .iter()
-                    .any(|enemy| circle.collides_with(enemy))
-                {
-                    if score == high_score {
-                        fs::write("highscore.dat", high_score.to_string()).ok();
-                    }
-                    game_state = GameState::GameOver;
-                }
-                for enemy in enemies.small.iter_mut() {
-                    for bullet in bullets.iter_mut() {
-                        if bullet.collides_with(enemy) {
-                            bullet.collided = true;
-                            enemy.collided = true;
-                            score += enemy.size.round() as u32;
-                            high_score = high_score.max(score);
-                            explosions.push((
-                                Emitter::new(EmitterConfig {
-                                    amount: enemy.size.round() as u32 * 1,
-                                    texture: Some(resources.explosion_texture.clone()),
-                                    ..particle_effects::explosion()
-                                }),
-                                vec2(enemy.x, enemy.y),
-                            ));
-                            play_sound(
-                                &resources.sound_explosion,
-                                PlaySoundParams {
-                                    looped: false,
-                                    volume: settings.effect_volume,
-                                },
-                            );
-                        }
-                    }
-                }
-                if enemies
-                    .medium
-                    .iter()
-                    .any(|enemy| circle.collides_with(enemy))
-                {
-                    if score == high_score {
-                        fs::write("highscore.dat", high_score.to_string()).ok();
-                    }
-                    game_state = GameState::GameOver;
-                }
-                for enemy in enemies.medium.iter_mut() {
-                    for bullet in bullets.iter_mut() {
-                        if bullet.collides_with(enemy) {
-                            bullet.collided = true;
-                            enemy.collided = true;
-                            score += enemy.size.round() as u32;
-                            high_score = high_score.max(score);
-                            explosions.push((
-                                Emitter::new(EmitterConfig {
-                                    amount: enemy.size.round() as u32 * 1,
-                                    texture: Some(resources.explosion_texture.clone()),
-                                    ..particle_effects::explosion()
-                                }),
-                                vec2(enemy.x, enemy.y),
-                            ));
-                            play_sound(
-                                &resources.sound_explosion,
-                                PlaySoundParams {
-                                    looped: false,
-                                    volume: settings.effect_volume,
-                                },
-                            );
-                        }
-                    }
-                }
-                if enemies
-                    .large
-                    .iter()
-                    .any(|enemy| circle.collides_with(enemy))
-                {
-                    if score == high_score {
-                        fs::write("highscore.dat", high_score.to_string()).ok();
-                    }
-                    game_state = GameState::GameOver;
-                }
-                for enemy in enemies.large.iter_mut() {
-                    for bullet in bullets.iter_mut() {
-                        if bullet.collides_with(enemy) {
-                            bullet.collided = true;
-                            enemy.collided = true;
-                            score += enemy.size.round() as u32;
-                            high_score = high_score.max(score);
-                            explosions.push((
-                                Emitter::new(EmitterConfig {
-                                    amount: enemy.size.round() as u32 * 1,
-                                    texture: Some(resources.explosion_texture.clone()),
-                                    ..particle_effects::explosion()
-                                }),
-                                vec2(enemy.x, enemy.y),
-                            ));
-                            play_sound(
-                                &resources.sound_explosion,
-                                PlaySoundParams {
-                                    looped: false,
-                                    volume: settings.effect_volume,
-                                },
-                            );
-                        }
-                    }
-                }
-
-                // Draw everything
-                let bullet_frame = bullet_sprite.frame();
-                for bullet in &bullets {
-                    draw_texture_ex(
-                        &resources.bullet_texture,
-                        bullet.x - bullet.size / 2.0,
-                        bullet.y - bullet.size / 2.0,
-                        WHITE,
-                        DrawTextureParams {
-                            dest_size: Some(vec2(bullet.size, bullet.size)),
-                            source: Some(bullet_frame.source_rect),
-                            ..Default::default()
-                        },
-                    );
-                }
-                let ship_frame = ship_sprite.frame();
-                draw_texture_ex(
-                    &resources.ship_texture,
-                    circle.x - ship_frame.dest_size.x,
-                    circle.y - ship_frame.dest_size.y,
-                    WHITE,
-                    DrawTextureParams {
-                        dest_size: Some(ship_frame.dest_size * 2.0),
-                        source: Some(ship_frame.source_rect),
-                        ..Default::default()
-                    },
-                );
-                enemies.draw(&resources);
-
-                for (explosion, coords) in explosions.iter_mut() {
-                    explosion.draw(*coords);
-                }
-                draw_text(
-                    format!("Score: {}", score).as_str(),
-                    10.0,
-                    35.0,
-                    25.0,
-                    WHITE,
-                );
-                let highscore_text = format!("High score: {}", high_score);
-                let text_dimensions = measure_text(highscore_text.as_str(), None, 25, 1.0);
-                draw_text(
-                    highscore_text.as_str(),
-                    screen_width() - text_dimensions.width - 10.0,
-                    35.0,
-                    25.0,
-                    WHITE,
-                );
+            // Reflect only if the velocity is in the opposite direction of the collision
+            // This prevents the ball from getting stuck inside the bar
+            match collision {
+                Collision::Left => reflect_x = ball_velocity.x > 0.0,
+                Collision::Right => reflect_x = ball_velocity.x < 0.0,
+                Collision::Top => reflect_y = ball_velocity.y < 0.0,
+                Collision::Bottom => reflect_y = ball_velocity.y > 0.0,
             }
-            GameState::Paused => {
-                if is_key_pressed(KeyCode::Space) {
-                    game_state = GameState::Playing;
-                }
-                if is_key_pressed(KeyCode::Escape) {
-                    game_state = GameState::MainMenu;
-                }
-                starfield_speed = StarfieldSpeed::Stop;
-                let paused_text = "Paused";
-                let paused_dimensions = measure_text(paused_text, None, 50, 1.0);
-                draw_text(
-                    paused_text,
-                    screen_width() / 2.0 - paused_dimensions.width / 2.0,
-                    screen_height() / 2.0 - 50.0,
-                    50.0,
-                    WHITE,
-                );
 
-                let space_text = "Press SPACE to resume";
-                let space_dimensions = measure_text(space_text, None, 20, 1.0);
-                let space_height = screen_height() / 2.0 - 10.0;
-                draw_text(
-                    space_text,
-                    screen_width() / 2.0 - space_dimensions.width / 2.0,
-                    space_height,
-                    20.0,
-                    WHITE,
-                );
-
-                let escape_text = "Press ESC to return to main menu";
-                let escape_dimensions = measure_text(escape_text, None, 20, 1.0);
-                draw_text(
-                    escape_text,
-                    screen_width() / 2.0 - escape_dimensions.width / 2.0,
-                    space_height + 30.0,
-                    20.0,
-                    WHITE,
-                );
+            // Reflect velocity on the x-axis if we hit something on the x-axis
+            if reflect_x {
+                ball_velocity.x = -ball_velocity.x;
             }
-            GameState::Settings => {
-                let delta = get_frame_time();
-                if is_key_pressed(KeyCode::Escape) {
-                    game_state = GameState::MainMenu;
-                }
-                settings_sound_effect_throttler.update(delta);
-                starfield_speed = StarfieldSpeed::Slow;
-                root_ui().window(
-                    hash!(),
-                    vec2(
-                        screen_width() / 2.0 - window_size.x / 2.0,
-                        screen_height() / 2.0 - window_size.y / 2.0,
-                    ),
-                    window_size,
-                    |ui| {
-                        let prev_music_volume = settings.music_volume;
-                        let prev_effect_volume = settings.effect_volume;
-                        ui.label(vec2(80.0, -34.0), "Settings");
-                        ui.slider(hash!(), "Music", 0f32..1f32, &mut settings.music_volume);
-                        ui.slider(hash!(), "Effects", 0f32..1f32, &mut settings.effect_volume);
 
-                        if settings.music_volume != prev_music_volume {
-                            set_sound_volume(&resources.theme_music, settings.music_volume);
-                        }
-
-                        if settings.effect_volume != prev_effect_volume {
-                            settings_sound_effect_throttler.run_action(|| {
-                                play_sound(
-                                    &resources.sound_laser,
-                                    PlaySoundParams {
-                                        looped: false,
-                                        volume: settings.effect_volume,
-                                    },
-                                );
-                            })
-                        }
-
-                        if ui.button(vec2(80.0, 160.0), "Back") {
-                            game_state = GameState::MainMenu;
-                        }
-                    },
-                );
-            }
-            GameState::GameOver => {
-                if is_key_pressed(KeyCode::Escape) {
-                    game_state = GameState::MainMenu;
-                }
-                starfield_speed = StarfieldSpeed::Slow;
-                let text = "GAME OVER!";
-                let text_dimensions = measure_text(text, None, 50, 1.0);
-                draw_text(
-                    text,
-                    screen_width() / 2.0 - text_dimensions.width / 2.0,
-                    screen_height() / 2.0,
-                    50.0,
-                    RED,
-                );
+            // Reflect velocity on the y-axis if we hit something on the y-axis
+            if reflect_y {
+                ball_velocity.y = -ball_velocity.y;
             }
         }
-
-        next_frame().await
     }
+}
+
+fn play_collision_sound(
+    mut commands: Commands,
+    mut collision_events: EventReader<CollisionEvent>,
+    sound: Res<CollisionSound>,
+) {
+    // Play a sound once per frame if a collision occurred.
+    if !collision_events.is_empty() {
+        // This prevents events staying active on the next frame.
+        collision_events.clear();
+        commands.spawn((AudioPlayer(sound.clone()), PlaybackSettings::DESPAWN));
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+enum Collision {
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
+// Returns `Some` if `ball` collides with `bounding_box`.
+// The returned `Collision` is the side of `bounding_box` that `ball` hit.
+fn ball_collision(ball: BoundingCircle, bounding_box: Aabb2d) -> Option<Collision> {
+    if !ball.intersects(&bounding_box) {
+        return None;
+    }
+
+    let closest = bounding_box.closest_point(ball.center());
+    let offset = ball.center() - closest;
+    let side = if offset.x.abs() > offset.y.abs() {
+        if offset.x < 0. {
+            Collision::Left
+        } else {
+            Collision::Right
+        }
+    } else if offset.y > 0. {
+        Collision::Top
+    } else {
+        Collision::Bottom
+    };
+
+    Some(side)
 }
