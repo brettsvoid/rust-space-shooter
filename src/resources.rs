@@ -9,6 +9,8 @@ pub struct Resources {
     pub bullet_texture: Texture2D,
     pub explosion_texture: Texture2D,
     pub enemy_small_texture: Texture2D,
+    pub enemy_medium_texture: Texture2D,
+    pub enemy_large_texture: Texture2D,
     pub theme_music: Sound,
     pub sound_explosion: Sound,
     pub sound_laser: Sound,
@@ -25,6 +27,10 @@ impl Resources {
         explosion_texture.set_filter(FilterMode::Nearest);
         let enemy_small_texture: Texture2D = load_texture("enemy-small.png").await?;
         enemy_small_texture.set_filter(FilterMode::Nearest);
+        let enemy_medium_texture: Texture2D = load_texture("enemy-medium.png").await?;
+        enemy_medium_texture.set_filter(FilterMode::Nearest);
+        let enemy_large_texture: Texture2D = load_texture("enemy-big.png").await?;
+        enemy_large_texture.set_filter(FilterMode::Nearest);
         build_textures_atlas();
 
         let theme_music = load_sound("8bit-spaceshooter.ogg").await?;
@@ -36,6 +42,7 @@ impl Resources {
         let button_clicked_background = load_image("button_clicked_background.png").await?;
         let font = load_file("atari_games.ttf").await?;
 
+        // Create UI skin
         let window_style = root_ui()
             .style_builder()
             .background(window_background)
@@ -70,6 +77,8 @@ impl Resources {
             bullet_texture,
             explosion_texture,
             enemy_small_texture,
+            enemy_medium_texture,
+            enemy_large_texture,
             theme_music,
             sound_explosion,
             sound_laser,

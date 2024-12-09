@@ -1,3 +1,5 @@
+use enemies::Enemies;
+use game_state::GameState;
 use macroquad::audio::{play_sound, set_sound_volume, PlaySoundParams};
 use macroquad::experimental::animation::{AnimatedSprite, Animation};
 use macroquad::experimental::collections::storage;
@@ -10,6 +12,8 @@ use throttler::Throttler;
 use crate::resources::Resources;
 use crate::settings::Settings;
 
+mod enemies;
+mod game_state;
 mod particle_effects;
 mod resources;
 mod settings;
@@ -41,18 +45,22 @@ impl Shape {
     }
 }
 
-enum GameState {
-    MainMenu,
-    Playing,
-    Paused,
-    Settings,
-    GameOver,
-}
-
 enum StarfieldSpeed {
     Stop,
     Slow,
     Fast,
+}
+
+fn get_column_x(size: f32) -> f32 {
+    let gutter = 4.0;
+    let width = screen_width();
+    let column_count = (width / (size + gutter)) as u32;
+    let gutter_count = column_count - 1;
+    let content_width = column_count as f32 * size + gutter_count as f32 * gutter;
+    let margin = (width - content_width) / 2.0;
+    let column = rand::gen_range(0, column_count);
+
+    (column as f32 * (size + gutter)) + size / 2.0 + margin
 }
 
 #[macroquad::main("Space Shooter")]
@@ -67,7 +75,7 @@ async fn main() -> Result<(), macroquad::Error> {
     settings.set_music_volume(0.5);
     settings.set_effect_volume(0.5);
 
-    let mut squares = vec![];
+    let mut enemies = Enemies::new();
     let mut bullets: Vec<Shape> = vec![];
     let mut circle = Shape {
         size: 32.0,
@@ -166,17 +174,6 @@ async fn main() -> Result<(), macroquad::Error> {
         ],
         true,
     );
-    let mut enemy_small_sprite = AnimatedSprite::new(
-        17,
-        16,
-        &[Animation {
-            name: "enemy_small".to_string(),
-            row: 0,
-            frames: 2,
-            fps: 12,
-        }],
-        true,
-    );
 
     play_sound(
         &resources.theme_music,
@@ -190,6 +187,9 @@ async fn main() -> Result<(), macroquad::Error> {
 
     let mut last_shot_throttler = Throttler::new(0.2);
     let mut settings_sound_effect_throttler = Throttler::new(0.2);
+    let small_enemy_size = 32.0;
+    let medium_enemy_size = 48.0;
+    let large_enemy_size = 64.0;
 
     loop {
         clear_background(BLACK);
@@ -241,7 +241,7 @@ async fn main() -> Result<(), macroquad::Error> {
                     |ui| {
                         ui.label(vec2(80.0, -34.0), "Main Menu");
                         if ui.button(vec2(80.0, 10.0), "Play") {
-                            squares.clear();
+                            enemies.clear();
                             bullets.clear();
                             explosions.clear();
                             circle.x = screen_width() / 2.0;
@@ -305,61 +305,163 @@ async fn main() -> Result<(), macroquad::Error> {
                 circle.x = clamp(circle.x, 0.0, screen_width());
                 circle.y = clamp(circle.y, 0.0, screen_height());
 
-                // Generate a new square
-                if rand::gen_range(0, 99) >= 95 {
-                    let size = rand::gen_range(16.0, 64.0);
-                    squares.push(Shape {
+                // Generate a new enemy
+                if rand::gen_range(0, 25) <= 1 && enemies.small.len() < 10 {
+                    let size = small_enemy_size;
+                    enemies.small.push(Shape {
                         size,
-                        speed: rand::gen_range(50.0, 150.0),
-                        x: rand::gen_range(size / 2.0, screen_width() - size / 2.0),
+                        speed: 100.0,
+                        x: get_column_x(size),
+                        y: -size,
+                        collided: false,
+                    });
+                }
+                if rand::gen_range(0, 75) <= 1 && enemies.medium.len() < 4 {
+                    let size = medium_enemy_size;
+                    enemies.medium.push(Shape {
+                        size,
+                        speed: 80.0,
+                        x: get_column_x(size),
+                        y: -size,
+                        collided: false,
+                    });
+                }
+                if rand::gen_range(0, 120) <= 1 && enemies.large.len() < 1 {
+                    let size = large_enemy_size;
+                    enemies.large.push(Shape {
+                        size,
+                        speed: 50.0,
+                        x: get_column_x(size),
                         y: -size,
                         collided: false,
                     });
                 }
 
                 // Movement
-                for square in &mut squares {
-                    square.y += square.speed * delta;
-                }
+                enemies.movement(delta);
                 for bullet in &mut bullets {
                     bullet.y -= bullet.speed * delta;
                 }
 
                 ship_sprite.update();
                 bullet_sprite.update();
-                enemy_small_sprite.update();
+                enemies.update();
 
                 // Remove shapes outside of screen
-                squares.retain(|square| square.y < screen_height() + square.size);
+                enemies
+                    .small
+                    .retain(|enemy| enemy.y < screen_height() + enemy.size);
+                enemies
+                    .medium
+                    .retain(|enemy| enemy.y < screen_height() + enemy.size);
+                enemies
+                    .large
+                    .retain(|enemy| enemy.y < screen_height() + enemy.size);
                 bullets.retain(|bullet| bullet.y > 0.0 - bullet.size / 2.0);
 
                 // Remove collided shapes
-                squares.retain(|square| !square.collided);
+                enemies.small.retain(|enemy| !enemy.collided);
+                enemies.medium.retain(|enemy| !enemy.collided);
+                enemies.large.retain(|enemy| !enemy.collided);
                 bullets.retain(|bullet| !bullet.collided);
 
                 explosions.retain(|(explosion, _)| explosion.config.emitting);
 
                 // Check for collisions
-                if squares.iter().any(|square| circle.collides_with(square)) {
+                if enemies
+                    .small
+                    .iter()
+                    .any(|enemy| circle.collides_with(enemy))
+                {
                     if score == high_score {
                         fs::write("highscore.dat", high_score.to_string()).ok();
                     }
                     game_state = GameState::GameOver;
                 }
-                for square in squares.iter_mut() {
+                for enemy in enemies.small.iter_mut() {
                     for bullet in bullets.iter_mut() {
-                        if bullet.collides_with(square) {
+                        if bullet.collides_with(enemy) {
                             bullet.collided = true;
-                            square.collided = true;
-                            score += square.size.round() as u32;
+                            enemy.collided = true;
+                            score += enemy.size.round() as u32;
                             high_score = high_score.max(score);
                             explosions.push((
                                 Emitter::new(EmitterConfig {
-                                    amount: square.size.round() as u32 * 1,
+                                    amount: enemy.size.round() as u32 * 1,
                                     texture: Some(resources.explosion_texture.clone()),
                                     ..particle_effects::explosion()
                                 }),
-                                vec2(square.x, square.y),
+                                vec2(enemy.x, enemy.y),
+                            ));
+                            play_sound(
+                                &resources.sound_explosion,
+                                PlaySoundParams {
+                                    looped: false,
+                                    volume: settings.effect_volume,
+                                },
+                            );
+                        }
+                    }
+                }
+                if enemies
+                    .medium
+                    .iter()
+                    .any(|enemy| circle.collides_with(enemy))
+                {
+                    if score == high_score {
+                        fs::write("highscore.dat", high_score.to_string()).ok();
+                    }
+                    game_state = GameState::GameOver;
+                }
+                for enemy in enemies.medium.iter_mut() {
+                    for bullet in bullets.iter_mut() {
+                        if bullet.collides_with(enemy) {
+                            bullet.collided = true;
+                            enemy.collided = true;
+                            score += enemy.size.round() as u32;
+                            high_score = high_score.max(score);
+                            explosions.push((
+                                Emitter::new(EmitterConfig {
+                                    amount: enemy.size.round() as u32 * 1,
+                                    texture: Some(resources.explosion_texture.clone()),
+                                    ..particle_effects::explosion()
+                                }),
+                                vec2(enemy.x, enemy.y),
+                            ));
+                            play_sound(
+                                &resources.sound_explosion,
+                                PlaySoundParams {
+                                    looped: false,
+                                    volume: settings.effect_volume,
+                                },
+                            );
+                        }
+                    }
+                }
+                if enemies
+                    .large
+                    .iter()
+                    .any(|enemy| circle.collides_with(enemy))
+                {
+                    if score == high_score {
+                        fs::write("highscore.dat", high_score.to_string()).ok();
+                    }
+                    game_state = GameState::GameOver;
+                }
+                for enemy in enemies.large.iter_mut() {
+                    for bullet in bullets.iter_mut() {
+                        if bullet.collides_with(enemy) {
+                            bullet.collided = true;
+                            enemy.collided = true;
+                            score += enemy.size.round() as u32;
+                            high_score = high_score.max(score);
+                            explosions.push((
+                                Emitter::new(EmitterConfig {
+                                    amount: enemy.size.round() as u32 * 1,
+                                    texture: Some(resources.explosion_texture.clone()),
+                                    ..particle_effects::explosion()
+                                }),
+                                vec2(enemy.x, enemy.y),
                             ));
                             play_sound(
                                 &resources.sound_explosion,
@@ -399,20 +501,8 @@ async fn main() -> Result<(), macroquad::Error> {
                         ..Default::default()
                     },
                 );
-                let enemy_frame = enemy_small_sprite.frame();
-                for square in &squares {
-                    draw_texture_ex(
-                        &resources.enemy_small_texture,
-                        square.x - square.size / 2.0,
-                        square.y - square.size / 2.0,
-                        WHITE,
-                        DrawTextureParams {
-                            dest_size: Some(vec2(square.size, square.size)),
-                            source: Some(enemy_frame.source_rect),
-                            ..Default::default()
-                        },
-                    );
-                }
+                enemies.draw(&resources);
+
                 for (explosion, coords) in explosions.iter_mut() {
                     explosion.draw(*coords);
                 }
