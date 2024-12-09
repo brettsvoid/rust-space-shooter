@@ -1,10 +1,11 @@
-use macroquad::audio::{play_sound, play_sound_once, set_sound_volume, PlaySoundParams};
+use macroquad::audio::{play_sound, set_sound_volume, PlaySoundParams};
 use macroquad::experimental::animation::{AnimatedSprite, Animation};
 use macroquad::experimental::collections::storage;
 use macroquad::prelude::*;
 use macroquad::ui::{hash, root_ui};
 use macroquad_particles::{Emitter, EmitterConfig};
 use std::fs;
+use throttler::Throttler;
 
 use crate::resources::Resources;
 use crate::settings::Settings;
@@ -12,11 +13,10 @@ use crate::settings::Settings;
 mod particle_effects;
 mod resources;
 mod settings;
+mod throttler;
 
 const FRAGMENT_SHADER: &str = include_str!("starfield.frag");
 const VERTEX_SHADER: &str = include_str!("vertex.vert");
-
-const SHOT_COOLDOWN: f32 = 0.2;
 
 struct Shape {
     size: f32,
@@ -65,7 +65,7 @@ async fn main() -> Result<(), macroquad::Error> {
     let mut settings = Settings::new();
     // Sound seems way too loud by default
     settings.set_music_volume(0.5);
-    settings.set_sound_volume(0.5);
+    settings.set_effect_volume(0.5);
 
     let mut squares = vec![];
     let mut bullets: Vec<Shape> = vec![];
@@ -185,10 +185,11 @@ async fn main() -> Result<(), macroquad::Error> {
             volume: settings.music_volume,
         },
     );
-    set_sound_volume(&resources.sound_explosion, settings.sound_volume);
-    set_sound_volume(&resources.sound_laser, settings.sound_volume);
+    set_sound_volume(&resources.sound_explosion, settings.effect_volume);
+    set_sound_volume(&resources.sound_laser, settings.effect_volume);
 
-    let mut last_shot = 0.0;
+    let mut last_shot_throttler = Throttler::new(0.2);
+    let mut settings_sound_effect_throttler = Throttler::new(0.2);
 
     loop {
         clear_background(BLACK);
@@ -258,27 +259,28 @@ async fn main() -> Result<(), macroquad::Error> {
                 );
             }
             GameState::Playing => {
-                let delta_time = get_frame_time();
+                let delta = get_frame_time();
                 starfield_speed = StarfieldSpeed::Fast;
                 ship_sprite.set_animation(0);
+                last_shot_throttler.update(delta);
                 if is_key_down(KeyCode::Right) || is_key_down(KeyCode::D) {
-                    circle.x += MOVE_SPEED * delta_time;
-                    direction_modifier += 0.05 * delta_time;
+                    circle.x += MOVE_SPEED * delta;
+                    direction_modifier += 0.05 * delta;
                     ship_sprite.set_animation(2);
                 }
                 if is_key_down(KeyCode::Left) || is_key_down(KeyCode::A) {
-                    circle.x -= MOVE_SPEED * delta_time;
-                    direction_modifier -= 0.05 * delta_time;
+                    circle.x -= MOVE_SPEED * delta;
+                    direction_modifier -= 0.05 * delta;
                     ship_sprite.set_animation(1);
                 }
                 if is_key_down(KeyCode::Down) || is_key_down(KeyCode::S) {
-                    circle.y += MOVE_SPEED * delta_time;
+                    circle.y += MOVE_SPEED * delta;
                 }
                 if is_key_down(KeyCode::Up) || is_key_down(KeyCode::W) {
-                    circle.y -= MOVE_SPEED * delta_time
+                    circle.y -= MOVE_SPEED * delta
                 }
                 if is_key_down(KeyCode::Space) {
-                    if last_shot <= 0.0 {
+                    last_shot_throttler.run_action(|| {
                         bullets.push(Shape {
                             x: circle.x,
                             y: circle.y - 24.0,
@@ -286,16 +288,18 @@ async fn main() -> Result<(), macroquad::Error> {
                             size: 32.0,
                             collided: false,
                         });
-                        play_sound_once(&resources.sound_laser);
-                        last_shot = SHOT_COOLDOWN;
-                    }
+                        play_sound(
+                            &resources.sound_laser,
+                            PlaySoundParams {
+                                looped: false,
+                                volume: settings.effect_volume,
+                            },
+                        );
+                    })
                 }
                 if is_key_pressed(KeyCode::Escape) {
                     game_state = GameState::Paused;
                 }
-
-                // Cooldowns
-                last_shot -= delta_time;
 
                 // Clamp X and Y to be within the screen
                 circle.x = clamp(circle.x, 0.0, screen_width());
@@ -315,10 +319,10 @@ async fn main() -> Result<(), macroquad::Error> {
 
                 // Movement
                 for square in &mut squares {
-                    square.y += square.speed * delta_time;
+                    square.y += square.speed * delta;
                 }
                 for bullet in &mut bullets {
-                    bullet.y -= bullet.speed * delta_time;
+                    bullet.y -= bullet.speed * delta;
                 }
 
                 ship_sprite.update();
@@ -357,7 +361,13 @@ async fn main() -> Result<(), macroquad::Error> {
                                 }),
                                 vec2(square.x, square.y),
                             ));
-                            play_sound_once(&resources.sound_explosion);
+                            play_sound(
+                                &resources.sound_explosion,
+                                PlaySoundParams {
+                                    looped: false,
+                                    volume: settings.effect_volume,
+                                },
+                            );
                         }
                     }
                 }
@@ -463,9 +473,11 @@ async fn main() -> Result<(), macroquad::Error> {
                 );
             }
             GameState::Settings => {
+                let delta = get_frame_time();
                 if is_key_pressed(KeyCode::Escape) {
                     game_state = GameState::MainMenu;
                 }
+                settings_sound_effect_throttler.update(delta);
                 starfield_speed = StarfieldSpeed::Slow;
                 root_ui().window(
                     hash!(),
@@ -475,20 +487,26 @@ async fn main() -> Result<(), macroquad::Error> {
                     ),
                     window_size,
                     |ui| {
-                        let prev_music_volume = settings.music_volume.clone();
-                        let prev_sound_volume = settings.sound_volume.clone();
+                        let prev_music_volume = settings.music_volume;
+                        let prev_effect_volume = settings.effect_volume;
                         ui.label(vec2(80.0, -34.0), "Settings");
                         ui.slider(hash!(), "Music", 0f32..1f32, &mut settings.music_volume);
-                        ui.slider(hash!(), "Effects", 0f32..1f32, &mut settings.sound_volume);
+                        ui.slider(hash!(), "Effects", 0f32..1f32, &mut settings.effect_volume);
 
                         if settings.music_volume != prev_music_volume {
                             set_sound_volume(&resources.theme_music, settings.music_volume);
                         }
 
-                        if settings.sound_volume != prev_sound_volume {
-                            set_sound_volume(&resources.sound_explosion, settings.sound_volume);
-                            set_sound_volume(&resources.sound_laser, settings.sound_volume);
-                            //play_sound_once(&resources.sound_laser);
+                        if settings.effect_volume != prev_effect_volume {
+                            settings_sound_effect_throttler.run_action(|| {
+                                play_sound(
+                                    &resources.sound_laser,
+                                    PlaySoundParams {
+                                        looped: false,
+                                        volume: settings.effect_volume,
+                                    },
+                                );
+                            })
                         }
 
                         if ui.button(vec2(80.0, 160.0), "Back") {
