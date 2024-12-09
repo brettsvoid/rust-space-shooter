@@ -13,6 +13,24 @@ struct EnemiesSprites {
     large: AnimatedSprite,
 }
 
+pub struct Enemy {
+    pub health: u32,
+    pub max_health: u32,
+}
+
+impl Enemy {
+    pub fn new(health: u32) -> Enemy {
+        Enemy {
+            health,
+            max_health: health,
+        }
+    }
+
+    pub fn take_damage(&mut self, damage: u32) {
+        self.health = self.health.saturating_sub(damage);
+    }
+}
+
 pub struct Enemies {
     pub small: Vec<Shape>,
     pub medium: Vec<Shape>,
