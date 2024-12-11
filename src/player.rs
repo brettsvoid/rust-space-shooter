@@ -11,14 +11,17 @@ const SPRITE_SHEET_PATH: &str = "../assets/ship.png";
 const SPRITE_SIZE: UVec2 = UVec2::new(16, 24);
 const SPRITE_COLUMNS: u32 = 2;
 const SPRITE_ROWS: u32 = 5;
-const SPRITE_FPS: u8 = 3;
+const SPRITE_FPS: u8 = 12;
 
-const PLAYER_SPEED: f32 = 5.0;
+// TODO: start very slow and gain speed with leveling up
+const PLAYER_SPEED: f32 = 500.0;
 
 // Sprite indices for different states
 const IDLE_SPRITES: (usize, usize) = (0, 1);
-const MOVE_RIGHT_SPRITES: (usize, usize) = (8, 9);
+const TRANSITION_LEFT_SPRITES: (usize, usize) = (2, 3);
 const MOVE_LEFT_SPRITES: (usize, usize) = (4, 5);
+const TRANSITION_RIGHT_SPRITES: (usize, usize) = (6, 7);
+const MOVE_RIGHT_SPRITES: (usize, usize) = (8, 9);
 
 pub struct PlayerPlugin;
 
@@ -29,6 +32,7 @@ impl Plugin for PlayerPlugin {
             ((
                 handle_player_movement,
                 update_player_state,
+                update_animation_stack,
                 update_player_animation,
                 apply_player_movement,
                 confine_player_movement,
@@ -42,12 +46,20 @@ impl Plugin for PlayerPlugin {
 #[derive(Component)]
 pub struct Player;
 
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, Debug)]
 pub enum PlayerState {
     #[default]
     Idle,
     MovingLeft,
     MovingRight,
+}
+#[derive(Component, Default, Debug)]
+pub struct PrevPlayerState(PlayerState);
+
+#[derive(Component)]
+struct AnimationStack {
+    frames: Vec<(usize, usize)>,
+    cycles: u8,
 }
 
 fn spawn_player(
@@ -72,6 +84,8 @@ fn spawn_player(
         },
         MovementSpeed(PLAYER_SPEED),
         Bounds { size: size * 2.0 },
+        PlayerState::default(),
+        PrevPlayerState::default(),
         Sprite {
             image: texture,
             texture_atlas: Some(TextureAtlas {
@@ -82,7 +96,10 @@ fn spawn_player(
             ..default()
         },
         AnimationConfig::new(IDLE_SPRITES.0, IDLE_SPRITES.1, SPRITE_FPS),
-        PlayerState::default(),
+        AnimationStack {
+            frames: vec![IDLE_SPRITES],
+            cycles: 1,
+        },
     ));
 }
 
@@ -120,63 +137,95 @@ fn confine_player_movement(
     transform.translation.y = transform.translation.y.clamp(min_y, max_y);
 }
 
-fn update_player_state(mut query: Query<(&MovementInput, &mut PlayerState), With<Player>>) {
-    let (input, mut state) = query.single_mut();
+fn update_player_state(
+    mut query: Query<(&MovementInput, &mut PlayerState, &mut PrevPlayerState), With<Player>>,
+) {
+    let (input, mut state, mut prev_state) = query.single_mut();
 
-    *state = if input.direction.x < 0.0 {
-        PlayerState::MovingLeft
+    if input.direction.x < 0.0 {
+        if !matches!(*state, PlayerState::MovingLeft) {
+            *prev_state = PrevPlayerState(state.clone());
+            *state = PlayerState::MovingLeft;
+        }
     } else if input.direction.x > 0.0 {
-        PlayerState::MovingRight
+        if !matches!(*state, PlayerState::MovingRight) {
+            *prev_state = PrevPlayerState(state.clone());
+            *state = PlayerState::MovingRight;
+        }
     } else {
-        PlayerState::Idle
-    };
+        if !matches!(*state, PlayerState::Idle) {
+            *prev_state = PrevPlayerState(state.clone());
+            *state = PlayerState::Idle;
+        }
+    }
+}
+
+fn update_animation_stack(
+    mut query: Query<(&PlayerState, &PrevPlayerState, &mut AnimationStack), Changed<PlayerState>>,
+) {
+    for (state, prev_state, mut animation_stack) in query.iter_mut() {
+        animation_stack.frames = match state {
+            PlayerState::Idle => {
+                if matches!(prev_state, PrevPlayerState(PlayerState::MovingLeft)) {
+                    vec![IDLE_SPRITES, TRANSITION_LEFT_SPRITES]
+                } else if matches!(prev_state, PrevPlayerState(PlayerState::MovingRight)) {
+                    vec![IDLE_SPRITES, TRANSITION_RIGHT_SPRITES]
+                } else {
+                    vec![IDLE_SPRITES]
+                }
+            }
+            PlayerState::MovingLeft => vec![MOVE_LEFT_SPRITES, TRANSITION_LEFT_SPRITES],
+            PlayerState::MovingRight => vec![MOVE_RIGHT_SPRITES, TRANSITION_RIGHT_SPRITES],
+        };
+        animation_stack.cycles = 0;
+    }
 }
 
 fn update_player_animation(
     time: Res<Time>,
-    mut query: Query<(&PlayerState, &mut AnimationConfig, &mut Sprite), With<Player>>,
+    mut query: Query<(&mut AnimationConfig, &mut Sprite, &mut AnimationStack), With<Player>>,
 ) {
-    let (state, mut config, mut sprite) = query.single_mut();
+    let (mut config, mut sprite, mut animation_stack) = query.single_mut();
 
-    // Update animation range based on player state
-    let (first, last) = match state {
-        PlayerState::Idle => IDLE_SPRITES,
-        PlayerState::MovingLeft => MOVE_LEFT_SPRITES,
-        PlayerState::MovingRight => MOVE_RIGHT_SPRITES,
-    };
+    let frame = animation_stack.frames.last();
+    let (first, last) = frame.unwrap();
 
-    // TODO: reverse animation when going back to idle
-
-    // If the state changes, reset timer and atlas position
-    if config.first_sprite_index != first || config.last_sprite_index != last {
+    // If the state changes, reset timer and set initial frame
+    if config.first_sprite_index != *first || config.last_sprite_index != *last {
         config.frame_timer = AnimationConfig::timer_from_fps(config.fps);
+
         if let Some(atlas) = &mut sprite.texture_atlas {
-            if first >= 2 {
-                // Go back 2 animation frames for the transition (for ship animation only)
-                atlas.index = first - 2;
-            } else {
-                atlas.index = first;
-            }
+            atlas.index = *first;
         }
     }
 
     // We track how long the current sprite has been displayed for
     config.frame_timer.tick(time.delta());
-    config.first_sprite_index = first;
-    config.last_sprite_index = last;
+    config.first_sprite_index = *first;
+    config.last_sprite_index = *last;
 
     // If it has been displayed for the user-defined amount of time (fps)...
     if config.frame_timer.just_finished() {
         if let Some(atlas) = &mut sprite.texture_atlas {
-            if atlas.index >= last {
+            if atlas.index >= *last {
                 // ...and it IS the last frame, then we move back to the first frame and stop.
-                atlas.index = first;
+                atlas.index = *first;
             } else {
                 // ...and it is NOT the last frame, then we move to the next frame...
                 atlas.index += 1;
             }
             // ...and reset the frame timer to start counting all over again
             config.frame_timer = AnimationConfig::timer_from_fps(config.fps);
+        }
+
+        // We keep track of 2 cycles for transition periods
+        if animation_stack.cycles > 1 {
+            animation_stack.cycles = 0;
+            if animation_stack.frames.len() > 1 {
+                animation_stack.frames.pop();
+            }
+        } else {
+            animation_stack.cycles += 1;
         }
     }
 }
