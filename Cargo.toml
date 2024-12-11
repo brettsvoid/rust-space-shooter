@@ -5,9 +5,11 @@ edition = "2021"
 
 [dependencies]
 bevy = "0.15.0"
+bevy_rand = { version = "0.8.0", features = ["wyrand"] }
 # macroquad = { version = "0.4.13", features = ["audio"] }
 # macroquad-particles = "0.2.2"
 log = { version = "*", features = ["max_level_debug", "release_max_level_warn"] }
+rand = "0.8.5"
 
 [features]
 bevy_debug_stepping = ["bevy/bevy_debug_stepping"]
