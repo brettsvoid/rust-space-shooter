@@ -1,10 +1,11 @@
-use crate::{
-    components::{Bounds, MovementInput, MovementSpeed},
-    sprite_animation::AnimationConfig,
-};
 use bevy::{
     image::{ImageLoaderSettings, ImageSampler},
     prelude::*,
+};
+
+use crate::{
+    components::{Bounds, Bullet, MovementInput, MovementSpeed, Shoot},
+    sprite_animation::{update_animations, AnimationConfig},
 };
 
 const SPRITE_SHEET_PATH: &str = "../assets/ship.png";
@@ -15,6 +16,7 @@ const SPRITE_FPS: u8 = 12;
 
 // TODO: start very slow and gain speed with leveling up
 const PLAYER_SPEED: f32 = 500.0;
+const PLAYER_SHOOT_COOLDOWN: f32 = 0.2;
 
 // Sprite indices for different states
 const IDLE_SPRITES: (usize, usize) = (0, 1);
@@ -23,21 +25,31 @@ const MOVE_LEFT_SPRITES: (usize, usize) = (4, 5);
 const TRANSITION_RIGHT_SPRITES: (usize, usize) = (6, 7);
 const MOVE_RIGHT_SPRITES: (usize, usize) = (8, 9);
 
+const BULLET_SPRITE_PATH: &str = "../assets/laser-bolts.png";
+const BULLET_SPRITE_SIZE: UVec2 = UVec2::new(16, 16);
+const BULLET_SPRITE_COLUMNS: u32 = 2;
+const BULLET_SPRITE_ROWS: u32 = 2;
+const BULLET_SPEED: f32 = 500.0;
+
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_player).add_systems(
             Update,
-            ((
-                handle_player_movement,
+            (
                 update_player_state,
-                update_animation_stack,
-                update_player_animation,
-                apply_player_movement,
-                confine_player_movement,
-            )
-                .chain(),),
+                handle_player_shoot,
+                (spawn_bullets, apply_bullet_movement),
+                update_animations::<Bullet>,
+                (update_animation_stack, update_player_animation).chain(),
+                (
+                    handle_player_movement,
+                    apply_player_movement,
+                    confine_player_movement,
+                )
+                    .chain(),
+            ),
         );
     }
 }
@@ -86,11 +98,13 @@ fn spawn_player(
         Bounds { size: size * 2.0 },
         PlayerState::default(),
         PrevPlayerState::default(),
+        Shoot::new(PLAYER_SHOOT_COOLDOWN),
+        Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)), // keep above bullet entities
         Sprite {
             image: texture,
             texture_atlas: Some(TextureAtlas {
                 layout: texture_atlas_layout,
-                index: 1,
+                index: 0,
             }),
             custom_size: Some(size * 2.0),
             ..default()
@@ -112,8 +126,8 @@ fn handle_player_movement(
 }
 
 fn apply_player_movement(
+    mut query: Populated<(&MovementInput, &MovementSpeed, &mut Transform), With<Player>>,
     time: Res<Time>,
-    mut query: Query<(&MovementInput, &MovementSpeed, &mut Transform), With<Player>>,
 ) {
     let (input, speed, mut transform) = query.single_mut();
     let movement = input.direction * speed.0 * time.delta_secs();
@@ -252,4 +266,67 @@ fn get_input_direction(keyboard: &ButtonInput<KeyCode>) -> Vec2 {
     }
 
     direction
+}
+
+fn handle_player_shoot(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut query: Query<&mut Shoot, With<Player>>,
+) {
+    let mut shoot = query.single_mut();
+    shoot.is_shooting = keyboard.pressed(KeyCode::Space);
+}
+
+fn spawn_bullets(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    mut query: Query<(&mut Shoot, &Transform), With<Player>>,
+    time: Res<Time>,
+) {
+    let (mut shoot, transform) = query.single_mut();
+    shoot.timer.tick(time.delta());
+    if !shoot.is_shooting {
+        return;
+    }
+
+    let texture = asset_server.load_with_settings(
+        BULLET_SPRITE_PATH,
+        |settings: &mut ImageLoaderSettings| {
+            settings.sampler = ImageSampler::nearest();
+        },
+    );
+    let layout = TextureAtlasLayout::from_grid(
+        BULLET_SPRITE_SIZE,
+        BULLET_SPRITE_COLUMNS,
+        BULLET_SPRITE_ROWS,
+        None,
+        None,
+    );
+    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+
+    let size = BULLET_SPRITE_SIZE.as_vec2();
+    if shoot.timer.finished() {
+        commands.spawn((
+            Bullet,
+            Sprite {
+                image: texture,
+                texture_atlas: Some(TextureAtlas {
+                    layout: texture_atlas_layout,
+                    index: 2,
+                }),
+                custom_size: Some(size * 2.0),
+                ..default()
+            },
+            AnimationConfig::new(2, 3, SPRITE_FPS),
+            Transform::from_translation(transform.translation),
+        ));
+        shoot.timer = Shoot::timer_from_cooldown(PLAYER_SHOOT_COOLDOWN);
+    }
+}
+
+fn apply_bullet_movement(mut query: Populated<&mut Transform, With<Bullet>>, time: Res<Time>) {
+    for mut transform in query.iter_mut() {
+        let movement = Vec2::new(0.0, BULLET_SPEED) * time.delta_secs();
+        transform.translation += movement.extend(0.0);
+    }
 }
