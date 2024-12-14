@@ -1,24 +1,30 @@
 use bevy::prelude::*;
+use bevy_dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy_rand::prelude::*;
 use enemies::EnemiesPlugin;
 use player::PlayerPlugin;
 
+mod background;
 mod components;
 mod enemies;
 mod player;
 mod sprite_animation;
 mod stepping;
 
+use background::BackgroundPlugin;
+
 const SCOREBOARD_FONT_SIZE: f32 = 33.0;
 const SCOREBOARD_TEXT_PADDING: Val = Val::Px(5.0);
 
-const BACKGROUND_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
+const BACKGROUND_COLOR: Color = Color::srgb(0.0, 0.0, 0.0); // Changed to black since we'll use shader
 const TEXT_COLOR: Color = Color::srgb(0.5, 0.5, 1.0);
 const SCORE_COLOR: Color = Color::srgb(1.0, 0.5, 0.5);
 
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, EntropyPlugin::<WyRand>::default()))
+        .add_plugins(FpsOverlayPlugin::default())
+        .add_plugins(BackgroundPlugin)
         .add_plugins(PlayerPlugin)
         .add_plugins(EnemiesPlugin)
         .add_plugins(
@@ -33,12 +39,9 @@ fn main() {
         .add_systems(Startup, setup)
         // Add our gameplay simulation systems to the fixed timestep schedule
         // which runs at 64 Hz by default
-        .add_systems(Update, update_scoreboard)
+        .add_systems(Update, (update_scoreboard, handle_exit))
         .run();
 }
-
-#[derive(Component)]
-struct Bullet;
 
 #[derive(Component)]
 struct Collider;
@@ -105,4 +108,10 @@ fn update_scoreboard(
     mut writer: TextUiWriter,
 ) {
     *writer.text(*score_root, 1) = score.to_string();
+}
+
+fn handle_exit(keyboard: Res<ButtonInput<KeyCode>>) {
+    if keyboard.pressed(KeyCode::KeyQ) {
+        std::process::exit(0);
+    }
 }

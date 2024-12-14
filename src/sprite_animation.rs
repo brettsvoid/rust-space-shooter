@@ -25,12 +25,6 @@ impl AnimationConfig {
     }
 }
 
-// This system runs when the user clicks the left arrow key or right arrow key
-pub fn trigger_animation<S: Component>(mut animation: Single<&mut AnimationConfig, With<S>>) {
-    // we create a new timer when the animation is triggered
-    animation.frame_timer = AnimationConfig::timer_from_fps(animation.fps);
-}
-
 // This system loops through all the sprites in the `TextureAtlas`, from  `first_sprite_index` to
 // `last_sprite_index` (both defined in `AnimationConfig`).
 pub fn update_animations<C: Component>(
