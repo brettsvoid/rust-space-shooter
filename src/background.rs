@@ -13,6 +13,7 @@ use bevy::{
 const FRAGMENT_SHADER_PATH: &str = "../assets/background_shader.frag";
 
 pub struct BackgroundPlugin;
+
 impl Plugin for BackgroundPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(Material2dPlugin::<BackgroundMaterial>::default())
