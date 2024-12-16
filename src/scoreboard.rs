@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use crate::game_state::GameState;
+
 const SCOREBOARD_FONT_SIZE: f32 = 33.0;
 const SCOREBOARD_TEXT_PADDING: Val = Val::Px(5.0);
 const TEXT_COLOR: Color = Color::srgb(0.5, 0.5, 1.0);
@@ -10,8 +12,11 @@ pub struct ScoreboardPlugin;
 impl Plugin for ScoreboardPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Score(0))
-            .add_systems(Startup, setup)
-            .add_systems(Update, update_scoreboard);
+            .add_systems(OnEnter(GameState::Playing), setup)
+            .add_systems(
+                Update,
+                update_scoreboard.run_if(in_state(GameState::Playing)),
+            );
     }
 }
 

@@ -6,7 +6,9 @@ use bevy_rand::prelude::*;
 use rand::prelude::*;
 
 use crate::{
-    components::MovementSpeed,
+    collisions::Collider,
+    components::{Bounds, MovementSpeed},
+    game_state::GameState,
     sprite_animation::{update_animations, AnimationConfig},
 };
 
@@ -40,14 +42,15 @@ impl Plugin for EnemiesPlugin {
                     apply_enemy_movement,
                     remove_fallen_enemies,
                     update_animations::<Enemy>,
-                ),
+                )
+                    .run_if(in_state(GameState::Playing)),
             );
     }
 }
 
 // Enemy marker component
 #[derive(Component)]
-struct Enemy;
+pub struct Enemy;
 
 fn spawn_enemies(
     mut commands: Commands,
@@ -85,8 +88,10 @@ fn spawn_enemies(
 
     commands.spawn((
         Enemy,
+        Collider,
         Transform::from_translation(spawn_position),
         MovementSpeed(ENEMY_SPEED),
+        Bounds { size: size * scale },
         Sprite {
             image: texture,
             texture_atlas: Some(TextureAtlas {

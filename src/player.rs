@@ -4,7 +4,9 @@ use bevy::{
 };
 
 use crate::{
+    collisions::Collider,
     components::{Bounds, Bullet, MovementInput, MovementSpeed, Shoot},
+    game_state::GameState,
     sprite_animation::{update_animations, AnimationConfig},
 };
 
@@ -35,22 +37,24 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_player).add_systems(
-            Update,
-            (
-                update_player_state,
-                handle_player_shoot,
-                (spawn_bullets, apply_bullet_movement),
-                update_animations::<Bullet>,
-                (update_animation_stack, update_player_animation).chain(),
+        app.add_systems(OnEnter(GameState::Playing), spawn_player)
+            .add_systems(
+                Update,
                 (
-                    handle_player_movement,
-                    apply_player_movement,
-                    confine_player_movement,
+                    update_player_state,
+                    handle_player_shoot,
+                    (spawn_bullets, apply_bullet_movement),
+                    update_animations::<Bullet>,
+                    (update_animation_stack, update_player_animation).chain(),
+                    (
+                        handle_player_movement,
+                        apply_player_movement,
+                        confine_player_movement,
+                    )
+                        .chain(),
                 )
-                    .chain(),
-            ),
-        );
+                    .run_if(in_state(GameState::Playing)),
+            );
     }
 }
 
@@ -58,7 +62,7 @@ impl Plugin for PlayerPlugin {
 #[derive(Component)]
 pub struct Player;
 
-#[derive(Component, Default, Clone, Debug)]
+#[derive(Component, Clone, Default, Debug)]
 pub enum PlayerState {
     #[default]
     Idle,
@@ -98,6 +102,7 @@ fn spawn_player(
         Bounds { size: size * 2.0 },
         PlayerState::default(),
         PrevPlayerState::default(),
+        Collider,
         Shoot::new(PLAYER_SHOOT_COOLDOWN),
         Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)), // keep above bullet entities
         Sprite {

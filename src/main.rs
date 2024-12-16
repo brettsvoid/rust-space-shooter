@@ -1,58 +1,54 @@
 use background::BackgroundPlugin;
-use bevy::prelude::*;
+use bevy::{prelude::*, winit::WinitSettings};
 use bevy_dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy_rand::prelude::*;
-use enemies::EnemiesPlugin;
-use player::PlayerPlugin;
-use scoreboard::ScoreboardPlugin;
+use components::Volume;
+use game::GamePlugin;
+use game_state::GameStatePlugin;
+use main_menu::MainMenuPlugin;
 
 mod background;
+mod collisions;
 mod components;
 mod enemies;
+mod game;
+mod game_state;
+mod main_menu;
 mod player;
 mod scoreboard;
 mod sprite_animation;
 mod stepping;
+mod systems;
 
 const BACKGROUND_COLOR: Color = Color::srgb(0.0, 0.0, 0.0); // Changed to black since we'll use shader
 
 fn main() {
+    // NOTE: Common resolution for most monitors scale well with 640x360px
     App::new()
         .add_plugins((DefaultPlugins, EntropyPlugin::<WyRand>::default()))
         .add_plugins(FpsOverlayPlugin::default())
-        .add_plugins(ScoreboardPlugin)
-        .add_plugins(BackgroundPlugin)
-        .add_plugins(PlayerPlugin)
-        .add_plugins(EnemiesPlugin)
+        .insert_resource(ClearColor(BACKGROUND_COLOR))
+        .insert_resource(Volume {
+            effects: 5,
+            music: 5,
+        })
+        .add_plugins((
+            GameStatePlugin,
+            MainMenuPlugin,
+            GamePlugin,
+            BackgroundPlugin,
+        ))
         .add_plugins(
             stepping::SteppingPlugin::default()
                 .add_schedule(Update)
                 .add_schedule(FixedUpdate)
                 .at(Val::Percent(35.0), Val::Percent(50.0)),
         )
-        .insert_resource(ClearColor(BACKGROUND_COLOR))
-        .add_event::<CollisionEvent>()
         .add_systems(Startup, setup)
         // Add our gameplay simulation systems to the fixed timestep schedule
         // which runs at 64 Hz by default
         .add_systems(Update, handle_exit)
         .run();
-}
-
-#[derive(Component)]
-struct Collider;
-
-#[derive(Event, Default)]
-struct CollisionEvent;
-
-// This bundle is a collection of the components that define a "wall" in our game
-#[derive(Bundle)]
-struct WallBundle {
-    // You can nest bundles inside of other bundles like this
-    // Allowing you to compose their functionality
-    sprite: Sprite,
-    transform: Transform,
-    collider: Collider,
 }
 
 // Add the game's entities to our world

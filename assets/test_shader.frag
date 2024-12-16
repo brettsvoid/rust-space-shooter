@@ -4,7 +4,6 @@
 precision mediump float;
 #endif
 
-
 layout(set = 2, binding = 0) uniform MaterialUniform {
     vec2 resolution; 
     float time;
