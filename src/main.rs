@@ -1,11 +1,11 @@
 use background::BackgroundPlugin;
-use bevy::{prelude::*, winit::WinitSettings};
+use bevy::prelude::*;
 use bevy_dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy_rand::prelude::*;
 use components::Volume;
 use game::GamePlugin;
 use game_state::GameStatePlugin;
-use main_menu::MainMenuPlugin;
+use menu::menu::MenuPlugin;
 
 mod background;
 mod collisions;
@@ -13,7 +13,7 @@ mod components;
 mod enemies;
 mod game;
 mod game_state;
-mod main_menu;
+mod menu;
 mod player;
 mod scoreboard;
 mod sprite_animation;
@@ -23,7 +23,7 @@ mod systems;
 const BACKGROUND_COLOR: Color = Color::srgb(0.0, 0.0, 0.0); // Changed to black since we'll use shader
 
 fn main() {
-    // NOTE: Common resolution for most monitors scale well with 640x360px
+    // NOTE: Common resolution that most monitors scale well with is 640x360px
     App::new()
         .add_plugins((DefaultPlugins, EntropyPlugin::<WyRand>::default()))
         .add_plugins(FpsOverlayPlugin::default())
@@ -32,12 +32,7 @@ fn main() {
             effects: 5,
             music: 5,
         })
-        .add_plugins((
-            GameStatePlugin,
-            MainMenuPlugin,
-            GamePlugin,
-            BackgroundPlugin,
-        ))
+        .add_plugins((GameStatePlugin, MenuPlugin, GamePlugin, BackgroundPlugin))
         .add_plugins(
             stepping::SteppingPlugin::default()
                 .add_schedule(Update)
