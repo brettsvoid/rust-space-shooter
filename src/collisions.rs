@@ -1,9 +1,19 @@
+use std::usize;
+
 use bevy::{
     math::bounding::{Aabb2d, BoundingVolume, IntersectsVolume},
     prelude::*,
+    state::commands,
 };
 
-use crate::{components::Bounds, enemies::Enemy, game_state::GameState, player::Player};
+use crate::{
+    components::{Bounds, Bullet},
+    enemies::Enemy,
+    game_state::GameState,
+    player::Player,
+    scoreboard::Score,
+    sprite_animation::AnimationConfig,
+};
 
 pub struct CollisionsPlugin;
 impl Plugin for CollisionsPlugin {
@@ -11,13 +21,15 @@ impl Plugin for CollisionsPlugin {
         app.add_event::<CollisionEvent>().add_systems(
             Update,
             (
-                check_player_enemy_collision,
-                //check_player_bullet_enemy_collision,
-            )
-                .run_if(in_state(GameState::Playing)),
+                (check_player_enemy_collision).run_if(in_state(GameState::Playing)),
+                (check_player_bullet_enemy_collision).run_if(in_state(GameState::Playing)),
+                update_explosion_animation,
+            ),
         );
     }
 }
+
+const SPRITE_FPS: u8 = 12;
 
 #[derive(Component)]
 pub struct Collider;
@@ -32,6 +44,9 @@ enum Collision {
     Top,
     Bottom,
 }
+
+#[derive(Component)]
+struct Explosion;
 
 pub fn check_player_enemy_collision(
     player_query: Query<(Entity, &Transform, &Bounds, &Collider), With<Player>>,
@@ -58,31 +73,54 @@ pub fn check_player_enemy_collision(
             // Sends a collision event so that other systems can react to the collision
             collision_events.send_default();
 
-            //println!("Collision detected: {:?}", collision);
-
-            // Bricks should be despawned and increment the scoreboard on collision
-            // if maybe_brick.is_some() {
-            //     commands.entity(collider_entity).despawn();
-            //     **score += 1;
-            // }
-            //commands.entity(*player_entity).despawn();
-
             // Set the game state to GameOver
             game_state.set(GameState::GameOver);
+        }
+    }
+}
 
-            // Reflect the ball's velocity when it collides
-            // let mut reflect_x = false;
-            // let mut reflect_y = false;
+fn check_player_bullet_enemy_collision(
+    mut commands: Commands,
+    enemy_query: Query<(Entity, &Transform, &Bounds, &Collider), With<Enemy>>,
+    bullet_query: Query<(Entity, &Transform), With<Bullet>>,
+    mut score: ResMut<Score>,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
+) {
+    let explosion_image = asset_server.load("../assets/explosion.png");
 
-            // Reflect only if the velocity is in the opposite direction of the collision
-            // This prevents the ball from getting stuck inside the bar
-            // let mut entity_velocity = source_entity.velocity.unwrap();
-            // match collision {
-            //     Collision::Left => reflect_x = entity_velocity.x > 0.0,
-            //     Collision::Right => reflect_x = entity_velocity.x < 0.0,
-            //     Collision::Top => reflect_y = entity_velocity.y < 0.0,
-            //     Collision::Bottom => reflect_y = entity_velocity.y > 0.0,
-            // }
+    let explosion_atlas = TextureAtlasLayout::from_grid(UVec2::splat(16), 5, 1, None, None);
+    let explosion_atlas_handle = texture_atlases.add(explosion_atlas);
+
+    for (enemy_entity, enemy_transform, enemy_bounds, _) in &enemy_query {
+        for (bullet_entity, bullet_transform) in &bullet_query {
+            let collision = is_collision(
+                Aabb2d::new(
+                    enemy_transform.translation.truncate(),
+                    enemy_bounds.size / 2.0,
+                ),
+                Aabb2d::new(bullet_transform.translation.truncate(), Vec2::splat(8.0)),
+            );
+            if let Some(_collision) = collision {
+                commands.spawn((
+                    Explosion,
+                    Transform::from_translation(enemy_transform.translation), // keep above bullet entities
+                    Sprite {
+                        image: explosion_image.clone(),
+                        texture_atlas: Some(TextureAtlas {
+                            layout: explosion_atlas_handle.clone(),
+                            index: 0,
+                        }),
+                        custom_size: Some(Vec2::splat(16.0) * 2.0),
+                        ..default()
+                    },
+                    AnimationConfig::new(0, 4, SPRITE_FPS),
+                ));
+
+                commands.entity(bullet_entity).despawn();
+                commands.entity(enemy_entity).despawn();
+                **score += 1;
+            }
         }
     }
 }
@@ -107,4 +145,27 @@ fn is_collision(entity_a: Aabb2d, entity_b: Aabb2d) -> Option<Collision> {
     };
 
     Some(side)
+}
+
+fn update_explosion_animation(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut AnimationConfig, &mut Sprite), With<Explosion>>,
+) {
+    for (entity, mut config, mut sprite) in &mut query {
+        config.frame_timer.tick(time.delta());
+        if config.frame_timer.just_finished() {
+            if let Some(atlas) = &mut sprite.texture_atlas {
+                if atlas.index >= config.last_sprite_index {
+                    // ...and it IS the last frame, then we despawn the explosion
+                    commands.entity(entity).despawn();
+                } else {
+                    // ...and it is NOT the last frame, then we move to the next frame...
+                    atlas.index += 1;
+                }
+                // ...and reset the frame timer to start counting all over again
+                config.frame_timer = AnimationConfig::timer_from_fps(config.fps);
+            }
+        }
+    }
 }

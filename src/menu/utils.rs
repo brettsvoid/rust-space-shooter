@@ -4,6 +4,47 @@ use super::menu::MenuButtonAction;
 
 const TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
 
+#[derive(Bundle)]
+struct MenuButton {
+    button: Button,
+    image: ImageNode,
+    node: Node,
+    action: MenuButtonAction,
+}
+impl Default for MenuButton {
+    fn default() -> Self {
+        Self {
+            button: Button::default(),
+            image: ImageNode::default(),
+            node: Node {
+                height: Val::Px(48.0),
+                margin: UiRect::axes(Val::Px(16.0), Val::Px(4.0)),
+                padding: UiRect::axes(Val::Px(20.0), Val::Px(12.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            action: MenuButtonAction::default(),
+        }
+    }
+}
+
+#[derive(Bundle)]
+struct MenuText {
+    text: Text,
+    font: TextFont,
+    color: TextColor,
+}
+impl Default for MenuText {
+    fn default() -> Self {
+        Self {
+            text: Text::default(),
+            font: TextFont::default(),
+            color: TextColor(TEXT_COLOR),
+        }
+    }
+}
+
 pub fn get_background_node(asset_server: &Res<AssetServer>) -> impl Bundle {
     let background_image = asset_server.load("../assets/window_background.png");
 
@@ -46,27 +87,15 @@ pub fn get_button_node(
         max_corner_scale: 1.0,
     };
 
-    // Common style for all buttons on the screen
-    let button_node = Node {
-        //width: Val::Px(.0),
-        height: Val::Px(48.0),
-        margin: UiRect::axes(Val::Px(16.0), Val::Px(4.0)),
-        padding: UiRect::axes(Val::Px(20.0), Val::Px(12.0)),
-        justify_content: JustifyContent::Center,
-        align_items: AlignItems::Center,
-        ..default()
-    };
-
-    (
-        Button,
-        ImageNode::from_atlas_image(
+    MenuButton {
+        image: ImageNode::from_atlas_image(
             button_image.clone(),
             TextureAtlas::from(button_atlas_handle.clone()),
         )
         .with_mode(NodeImageMode::Sliced(button_slicer.clone())),
-        button_node.clone(),
         action,
-    )
+        ..default()
+    }
 }
 
 pub fn get_text_node(asset_server: &Res<AssetServer>, text: &str) -> impl Bundle {
@@ -78,9 +107,9 @@ pub fn get_text_node(asset_server: &Res<AssetServer>, text: &str) -> impl Bundle
         ..default()
     };
 
-    (
-        Text::new(text),
-        button_text_font.clone(),
-        TextColor(TEXT_COLOR),
-    )
+    MenuText {
+        text: Text::new(text),
+        font: button_text_font.clone(),
+        ..default()
+    }
 }

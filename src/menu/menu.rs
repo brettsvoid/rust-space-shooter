@@ -30,7 +30,7 @@ pub enum MenuState {
 }
 
 // All actions that can be triggered from a button click
-#[derive(Component)]
+#[derive(Component, Default)]
 pub enum MenuButtonAction {
     Play,
     Settings,
@@ -39,6 +39,8 @@ pub enum MenuButtonAction {
     BackToMainMenu,
     //BackToSettings,
     Quit,
+    #[default]
+    Noop,
 }
 
 // Tag component used to mark which setting is currently selected
@@ -81,8 +83,9 @@ fn menu_action(
                 MenuButtonAction::BackToMainMenu => {
                     menu_state.set(MenuState::Main);
                 } // MenuButtonAction::BackToSettings => {
-                  //     menu_state.set(MainMenuState::Settings);
-                  // }
+                //     menu_state.set(MainMenuState::Settings);
+                // }
+                MenuButtonAction::Noop => (),
             }
         }
     }

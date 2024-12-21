@@ -3,8 +3,8 @@ use bevy::prelude::*;
 use bevy_dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy_rand::prelude::*;
 use components::Volume;
-use game::GamePlugin;
-use game_state::GameStatePlugin;
+use game::{GamePlugin, GameRestartEvent};
+use game_state::{GameState, GameStatePlugin};
 use menu::menu::MenuPlugin;
 
 mod background;
@@ -56,8 +56,29 @@ fn setup(mut commands: Commands) {
     // commands.insert_resource(CollisionSound(ball_collision_sound));
 }
 
-fn handle_exit(keyboard: Res<ButtonInput<KeyCode>>) {
-    if keyboard.pressed(KeyCode::KeyQ) {
+fn handle_exit(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    current_game_state: Res<State<GameState>>,
+    mut next_game_state: ResMut<NextState<GameState>>,
+    mut game_restart_event: EventWriter<GameRestartEvent>,
+) {
+    if keyboard.just_released(KeyCode::KeyQ) {
         std::process::exit(0);
+    }
+    if keyboard.just_released(KeyCode::Escape) {
+        match current_game_state.get() {
+            GameState::Playing => next_game_state.set(GameState::Paused),
+            GameState::Paused => next_game_state.set(GameState::Playing),
+            _ => (),
+        }
+    }
+    if keyboard.just_released(KeyCode::KeyR) {
+        match current_game_state.get() {
+            GameState::GameOver => {
+                next_game_state.set(GameState::Playing);
+                game_restart_event.send_default();
+            }
+            _ => (),
+        }
     }
 }

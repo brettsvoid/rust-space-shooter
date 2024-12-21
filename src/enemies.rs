@@ -8,6 +8,7 @@ use rand::prelude::*;
 use crate::{
     collisions::Collider,
     components::{Bounds, MovementSpeed},
+    game::GameRestartEvent,
     game_state::GameState,
     sprite_animation::{update_animations, AnimationConfig},
 };
@@ -44,7 +45,8 @@ impl Plugin for EnemiesPlugin {
                     update_animations::<Enemy>,
                 )
                     .run_if(in_state(GameState::Playing)),
-            );
+            )
+            .add_systems(Update, reset_enemies);
     }
 }
 
@@ -138,6 +140,20 @@ fn remove_fallen_enemies(
         if transform.translation.y < -window.height() / 2.0 {
             commands.entity(entity).despawn();
             **enemy_count -= 1;
+        }
+    }
+}
+
+fn reset_enemies(
+    mut commands: Commands,
+    mut game_restart_event: EventReader<GameRestartEvent>,
+    query: Query<Entity, With<Enemy>>,
+) {
+    if !game_restart_event.is_empty() {
+        game_restart_event.clear();
+
+        for entity in &query {
+            commands.entity(entity).despawn();
         }
     }
 }

@@ -22,17 +22,26 @@ impl Plugin for ScoreboardPlugin {
 
 // This resource tracks the game's score
 #[derive(Resource, Deref, DerefMut)]
-struct Score(usize);
+pub struct Score(usize);
 
 #[derive(Component)]
 struct ScoreboardUi;
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let text_font = asset_server.load("../assets/atari_games.ttf");
+
+    // MenuText {
+    //     text: Text::new(text),
+    //     font: button_text_font.clone(),
+    //     ..default()
+    // }
+
     // Scoreboard
     commands
         .spawn((
             Text::new("Score: "),
             TextFont {
+                font: text_font.clone(),
                 font_size: SCOREBOARD_FONT_SIZE,
                 ..default()
             },
@@ -41,13 +50,14 @@ fn setup(mut commands: Commands) {
             Node {
                 position_type: PositionType::Absolute,
                 top: SCOREBOARD_TEXT_PADDING,
-                left: SCOREBOARD_TEXT_PADDING,
+                right: SCOREBOARD_TEXT_PADDING,
                 ..default()
             },
         ))
         .with_child((
             TextSpan::default(),
             TextFont {
+                font: text_font.clone(),
                 font_size: SCOREBOARD_FONT_SIZE,
                 ..default()
             },

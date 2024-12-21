@@ -7,6 +7,7 @@ use crate::{
     collisions::Collider,
     components::{Bounds, Bullet, MovementInput, MovementSpeed, Shoot},
     game_state::GameState,
+    menu::menu::MenuState,
     sprite_animation::{update_animations, AnimationConfig},
 };
 
@@ -37,7 +38,7 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Playing), spawn_player)
+        app.add_systems(OnEnter(MenuState::Disabled), spawn_player)
             .add_systems(
                 Update,
                 (
