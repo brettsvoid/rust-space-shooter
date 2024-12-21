@@ -12,12 +12,11 @@ pub struct ScoreboardPlugin;
 impl Plugin for ScoreboardPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Score(0))
-            .add_systems(OnEnter(GameState::Playing), (setup, reset_score))
+            .add_systems(OnEnter(GameState::Playing), (cleanup_scoreboard, setup, reset_score))
             .add_systems(
                 Update,
                 update_scoreboard.run_if(in_state(GameState::Playing)),
-            )
-            .add_systems(OnExit(GameState::Playing), cleanup_scoreboard);
+            );
     }
 }
 
