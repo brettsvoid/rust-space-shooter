@@ -12,6 +12,7 @@ mod collisions;
 mod components;
 mod enemies;
 mod game;
+mod game_over;
 mod game_state;
 mod menu;
 mod player;
@@ -32,7 +33,13 @@ fn main() {
             effects: 5,
             music: 5,
         })
-        .add_plugins((GameStatePlugin, MenuPlugin, GamePlugin, BackgroundPlugin))
+        .add_plugins((
+            GameStatePlugin,
+            MenuPlugin,
+            GamePlugin,
+            BackgroundPlugin,
+            game_over::GameOverPlugin,
+        ))
         .add_plugins(
             stepping::SteppingPlugin::default()
                 .add_schedule(Update)
