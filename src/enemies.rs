@@ -36,6 +36,7 @@ impl Plugin for EnemiesPlugin {
         app
             //.add_systems(Startup, spawn_enemies)
             .insert_resource(EnemyCount(0))
+            .add_systems(OnEnter(GameState::Playing), enemies_setup)
             .add_systems(
                 Update,
                 (
@@ -53,6 +54,11 @@ impl Plugin for EnemiesPlugin {
 // Enemy marker component
 #[derive(Component)]
 pub struct Enemy;
+
+fn enemies_setup(mut enemy_count: ResMut<EnemyCount>) {
+    // Ensure enemy count starts at 0 when entering Playing state
+    **enemy_count = 0;
+}
 
 fn spawn_enemies(
     mut commands: Commands,
@@ -146,6 +152,7 @@ fn remove_fallen_enemies(
 
 fn reset_enemies(
     mut commands: Commands,
+    mut enemy_count: ResMut<EnemyCount>,
     mut game_restart_event: EventReader<GameRestartEvent>,
     query: Query<Entity, With<Enemy>>,
 ) {
@@ -155,5 +162,8 @@ fn reset_enemies(
         for entity in &query {
             commands.entity(entity).despawn();
         }
+
+        // Reset the enemy count to 0
+        **enemy_count = 0;
     }
 }

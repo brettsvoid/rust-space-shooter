@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 
 use crate::collisions::CollisionsPlugin;
-use crate::components::Volume;
 use crate::enemies::EnemiesPlugin;
 use crate::game_state::GameState;
 use crate::player::PlayerPlugin;
@@ -31,6 +30,6 @@ struct GameScreen;
 #[derive(Event, Default)]
 pub struct GameRestartEvent;
 
-fn game_setup(mut _commands: Commands, _volume: Res<Volume>) {}
+fn game_setup() {}
 
 fn game() {}
