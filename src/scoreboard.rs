@@ -12,11 +12,12 @@ pub struct ScoreboardPlugin;
 impl Plugin for ScoreboardPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Score(0))
-            .add_systems(OnEnter(GameState::Playing), setup)
+            .add_systems(OnEnter(GameState::Playing), (setup, reset_score))
             .add_systems(
                 Update,
                 update_scoreboard.run_if(in_state(GameState::Playing)),
-            );
+            )
+            .add_systems(OnExit(GameState::Playing), cleanup_scoreboard);
     }
 }
 
@@ -63,6 +64,19 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             },
             TextColor(SCORE_COLOR),
         ));
+}
+
+fn reset_score(mut score: ResMut<Score>) {
+    score.0 = 0;
+}
+
+fn cleanup_scoreboard(
+    mut commands: Commands,
+    query: Query<Entity, With<ScoreboardUi>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
 }
 
 fn update_scoreboard(
