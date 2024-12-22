@@ -13,17 +13,61 @@ use crate::{
     sprite_animation::{update_animations, AnimationConfig},
 };
 
-const SPRITE_SHEET_PATH: &str = "../assets/enemy-small.png";
-const SPRITE_SIZE: UVec2 = UVec2::new(17, 16);
-const SPRITE_COLUMNS: u32 = 2;
-const SPRITE_ROWS: u32 = 1;
-const SPRITE_FPS: u8 = 12;
+#[derive(Component)]
+pub enum EnemyType {
+    Small,
+    Medium,
+    Large,
+}
+
+struct EnemyConfig {
+    sprite_path: &'static str,
+    sprite_size: UVec2,
+    sprite_columns: u32,
+    sprite_rows: u32,
+    sprite_fps: u8,
+    speed: f32,
+    scale: f32,
+}
+
+impl EnemyType {
+    fn config(&self) -> EnemyConfig {
+        match self {
+            EnemyType::Small => EnemyConfig {
+                sprite_path: "../assets/enemy-small.png",
+                sprite_size: UVec2::new(17, 16),
+                sprite_columns: 2,
+                sprite_rows: 1,
+                sprite_fps: 12,
+                speed: 100.0,
+                scale: 2.0,
+            },
+            EnemyType::Medium => EnemyConfig {
+                sprite_path: "../assets/enemy-medium.png",
+                sprite_size: UVec2::new(32, 16),
+                sprite_columns: 2,
+                sprite_rows: 1,
+                sprite_fps: 12,
+                speed: 75.0,
+                scale: 2.0,
+            },
+            EnemyType::Large => EnemyConfig {
+                sprite_path: "../assets/enemy-large.png",
+                sprite_size: UVec2::new(32, 32),
+                sprite_columns: 2,
+                sprite_rows: 1,
+                sprite_fps: 12,
+                speed: 50.0,
+                scale: 2.0,
+            },
+        }
+    }
+}
 
 const MAX_ENEMIES: usize = 100;
 const ENEMY_SPAWN_CHANCE: u32 = 1;
 const ENEMY_SPAWN_DENOMINATOR: u32 = 25;
 const ENEMY_GUTTER: f32 = 4.0;
-const ENEMY_SPEED: f32 = 100.0;
 
 // This resource tracks the amount of enemies score
 #[derive(Resource, Deref, DerefMut)]
@@ -53,7 +97,9 @@ impl Plugin for EnemiesPlugin {
 
 // Enemy marker component
 #[derive(Component)]
-pub struct Enemy;
+pub struct Enemy {
+    pub enemy_type: EnemyType,
+}
 
 fn enemies_setup(mut enemy_count: ResMut<EnemyCount>) {
     // Ensure enemy count starts at 0 when entering Playing state
@@ -78,38 +124,54 @@ fn spawn_enemies(
         return;
     }
 
-    let scale = 2.0;
-    let size = SPRITE_SIZE.as_vec2();
-    let size_x = size.x * scale;
+    // Randomly choose enemy type
+    let enemy_type = match rng.gen_range(0..=2) {
+        0 => EnemyType::Small,
+        1 => EnemyType::Medium,
+        _ => EnemyType::Large,
+    };
+
+    let config = enemy_type.config();
+    let size = config.sprite_size.as_vec2();
+    let size_x = size.x * config.scale;
     let column_count = (window.width() / (size_x + ENEMY_GUTTER)) as u32;
     let column = rng.gen_range(0..column_count);
     let x_pos = calculate_enemy_x_position(&window, column, size_x);
     let spawn_position = Vec3::new(x_pos, window.height() / 2.0 + size_x / 2.0, 1.0);
 
-    let texture =
-        asset_server.load_with_settings(SPRITE_SHEET_PATH, |settings: &mut ImageLoaderSettings| {
+    let texture = asset_server.load_with_settings(
+        config.sprite_path,
+        |settings: &mut ImageLoaderSettings| {
             settings.sampler = ImageSampler::nearest();
-        });
-    let layout =
-        TextureAtlasLayout::from_grid(SPRITE_SIZE, SPRITE_COLUMNS, SPRITE_ROWS, None, None);
+        },
+    );
+    let layout = TextureAtlasLayout::from_grid(
+        config.sprite_size,
+        config.sprite_columns,
+        config.sprite_rows,
+        None,
+        None,
+    );
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
 
     commands.spawn((
-        Enemy,
+        Enemy { enemy_type },
         Collider,
         Transform::from_translation(spawn_position),
-        MovementSpeed(ENEMY_SPEED),
-        Bounds { size: size * scale },
+        MovementSpeed(config.speed),
+        Bounds {
+            size: size * config.scale,
+        },
         Sprite {
             image: texture,
             texture_atlas: Some(TextureAtlas {
                 layout: texture_atlas_layout,
                 index: 0,
             }),
-            custom_size: Some(size * scale),
+            custom_size: Some(size * config.scale),
             ..default()
         },
-        AnimationConfig::new(0, 1, SPRITE_FPS),
+        AnimationConfig::new(0, 1, config.sprite_fps),
     ));
 
     **enemy_count += 1;

@@ -8,7 +8,7 @@ use bevy::{
 
 use crate::{
     components::{Bounds, Bullet},
-    enemies::Enemy,
+    enemies::{Enemy, EnemyType},
     game_state::GameState,
     player::Player,
     scoreboard::Score,
@@ -81,7 +81,7 @@ pub fn check_player_enemy_collision(
 
 fn check_player_bullet_enemy_collision(
     mut commands: Commands,
-    enemy_query: Query<(Entity, &Transform, &Bounds, &Collider), With<Enemy>>,
+    enemy_query: Query<(Entity, &Transform, &Bounds, &Enemy, &Collider), With<Enemy>>,
     bullet_query: Query<(Entity, &Transform), With<Bullet>>,
     mut score: ResMut<Score>,
     asset_server: Res<AssetServer>,
@@ -92,7 +92,7 @@ fn check_player_bullet_enemy_collision(
     let explosion_atlas = TextureAtlasLayout::from_grid(UVec2::splat(16), 5, 1, None, None);
     let explosion_atlas_handle = texture_atlases.add(explosion_atlas);
 
-    for (enemy_entity, enemy_transform, enemy_bounds, _) in &enemy_query {
+    for (enemy_entity, enemy_transform, enemy_bounds, enemy, _) in &enemy_query {
         for (bullet_entity, bullet_transform) in &bullet_query {
             let collision = is_collision(
                 Aabb2d::new(
@@ -119,7 +119,11 @@ fn check_player_bullet_enemy_collision(
 
                 commands.entity(bullet_entity).despawn();
                 commands.entity(enemy_entity).despawn();
-                **score += 1;
+                **score += match enemy.enemy_type {
+                    EnemyType::Large => 10,
+                    EnemyType::Medium => 5,
+                    EnemyType::Small => 2,
+                }
             }
         }
     }
