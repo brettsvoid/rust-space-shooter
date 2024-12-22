@@ -1,7 +1,4 @@
-use bevy::{
-    prelude::*,
-    ui::{measurement, MeasureArgs, UiRect},
-};
+use bevy::{prelude::*, ui::UiRect};
 
 use crate::{settings::Settings, systems::despawn_screen};
 

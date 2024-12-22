@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bevy::{ prelude::*};
+use bevy::prelude::*;
 
 /// Component for handling movement input direction
 #[derive(Component)]
@@ -38,9 +38,3 @@ impl Shoot {
 
 #[derive(Component)]
 pub struct Bullet;
-
-#[derive(Resource, Debug, Component, PartialEq, Eq, Clone, Copy)]
-pub struct Volume {
-    pub effects: u32,
-    pub music: u32,
-}

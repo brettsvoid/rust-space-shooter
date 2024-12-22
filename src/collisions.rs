@@ -1,12 +1,10 @@
-use std::usize;
-
 use bevy::{
     math::bounding::{Aabb2d, BoundingVolume, IntersectsVolume},
     prelude::*,
-    state::commands,
 };
 
 use crate::{
+    audio::GameSounds,
     components::{Bounds, Bullet},
     enemies::{Enemy, EnemyCount, EnemyType},
     game_state::GameState,
@@ -87,6 +85,7 @@ fn check_player_bullet_enemy_collision(
     mut score: ResMut<Score>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
+    game_sounds: Res<GameSounds>,
 ) {
     let explosion_image = asset_server.load("../assets/explosion.png");
 
@@ -103,6 +102,12 @@ fn check_player_bullet_enemy_collision(
                 Aabb2d::new(bullet_transform.translation.truncate(), Vec2::splat(8.0)),
             );
             if let Some(_collision) = collision {
+                // Play explosion sound
+                commands.spawn((
+                    AudioPlayer::new(game_sounds.explosion.clone()),
+                    PlaybackSettings::DESPAWN,
+                ));
+
                 commands.spawn((
                     Explosion,
                     Transform::from_translation(enemy_transform.translation), // keep above bullet entities

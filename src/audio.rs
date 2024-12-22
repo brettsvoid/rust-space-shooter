@@ -5,8 +5,11 @@ use crate::settings::Settings;
 
 pub struct GameAudioPlugin;
 
-// #[derive(Resource)]
-// pub struct GameMusic(Handle<AudioSource>);
+#[derive(Resource)]
+pub struct GameSounds {
+    pub shoot: Handle<AudioSource>,
+    pub explosion: Handle<AudioSource>,
+}
 
 impl Plugin for GameAudioPlugin {
     fn build(&self, app: &mut App) {
@@ -28,7 +31,14 @@ fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>, settings:
         },
     ));
 
-    // commands.insert_resource(GameMusic(music));
+    // Load sound effects
+    let shoot_sound = asset_server.load("../assets/laser.wav");
+    let explosion_sound = asset_server.load("../assets/explosion.wav");
+
+    commands.insert_resource(GameSounds {
+        shoot: shoot_sound,
+        explosion: explosion_sound,
+    });
 }
 
 fn update_volume(settings: Res<Settings>, mut audio_query: Query<&mut AudioSink>) {

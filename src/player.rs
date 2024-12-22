@@ -1,13 +1,16 @@
 use bevy::{
+    audio::*,
     image::{ImageLoaderSettings, ImageSampler},
     prelude::*,
 };
 
 use crate::{
+    audio::GameSounds,
     collisions::Collider,
     components::{Bounds, Bullet, MovementInput, MovementSpeed, Shoot},
     game_state::GameState,
     menu::menu::MenuState,
+    settings::Settings,
     sprite_animation::{update_animations, AnimationConfig},
 };
 
@@ -44,9 +47,11 @@ impl Plugin for PlayerPlugin {
                 (
                     update_player_state,
                     handle_player_shoot,
-                    (spawn_bullets, apply_bullet_movement),
+                    spawn_bullets,
+                    apply_bullet_movement,
                     update_animations::<Bullet>,
-                    (update_animation_stack, update_player_animation).chain(),
+                    update_animation_stack,
+                    update_player_animation,
                     (
                         handle_player_movement,
                         apply_player_movement,
@@ -288,6 +293,8 @@ fn spawn_bullets(
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     mut query: Query<(&mut Shoot, &Transform), With<Player>>,
     time: Res<Time>,
+    game_sounds: Res<GameSounds>,
+    settings: Res<Settings>,
 ) {
     let (mut shoot, transform) = query.single_mut();
     shoot.timer.tick(time.delta());
@@ -312,6 +319,16 @@ fn spawn_bullets(
 
     let size = BULLET_SPRITE_SIZE.as_vec2();
     if shoot.timer.finished() {
+        // Play shoot sound
+        commands.spawn((
+            AudioPlayer::new(game_sounds.shoot.clone()),
+            PlaybackSettings {
+                mode: PlaybackMode::Once,
+                volume: Volume::new(settings.effect_volume),
+                ..default()
+            },
+        ));
+
         commands.spawn((
             Bullet,
             Sprite {
