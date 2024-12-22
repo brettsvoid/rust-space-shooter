@@ -64,7 +64,7 @@ impl EnemyType {
     }
 }
 
-const MAX_ENEMIES: usize = 100;
+const MAX_ENEMIES: usize = 50;
 const ENEMY_SPAWN_CHANCE: u32 = 1;
 const ENEMY_SPAWN_DENOMINATOR: u32 = 25;
 const ENEMY_GUTTER: f32 = 4.0;
