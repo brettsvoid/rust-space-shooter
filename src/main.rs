@@ -2,7 +2,6 @@ use background::BackgroundPlugin;
 use bevy::prelude::*;
 use bevy_dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy_rand::prelude::*;
-use components::Volume;
 use game::{GamePlugin, GameRestartEvent};
 use game_state::{GameState, GameStatePlugin};
 use menu::menu::MenuPlugin;

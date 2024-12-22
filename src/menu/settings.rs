@@ -1,6 +1,9 @@
-use bevy::prelude::*;
+use bevy::{
+    prelude::*,
+    ui::{measurement, MeasureArgs, UiRect},
+};
 
-use crate::systems::despawn_screen;
+use crate::{settings::Settings, systems::despawn_screen};
 
 use super::{
     menu::{MenuButtonAction, MenuState},
@@ -22,9 +25,14 @@ impl Plugin for SettingsPlugin {
 #[derive(Component)]
 struct SettingsScreen;
 
-// One of the two settings that can be set through the menu. It will be a resource in the app
-#[derive(Resource, Debug, Component, PartialEq, Eq, Clone, Copy)]
-struct Volume(u32);
+#[derive(Component)]
+enum VolumeControl {
+    Music,
+    Effects,
+}
+
+#[derive(Component)]
+struct Slider;
 
 const TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
 
@@ -70,7 +78,57 @@ fn settings_setup(
                         },
                     ));
 
-                    p.spawn(get_text_node(&asset_server, "Volume"));
+                    // Music Volume Control
+                    p.spawn(get_text_node(&asset_server, "Music Volume"));
+                    p.spawn((
+                        VolumeControl::Music,
+                        Button,
+                        Interaction::default(),
+                        Node {
+                            width: Val::Px(200.0),
+                            height: Val::Px(20.0),
+                            margin: UiRect::all(Val::Px(8.0)),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.4, 0.4, 0.4)),
+                    ))
+                    .with_children(|p| {
+                        p.spawn((
+                            Slider,
+                            Node {
+                                width: Val::Percent(50.0), // Initial value
+                                height: Val::Percent(100.0),
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgb(1.0, 1.0, 1.0)),
+                        ));
+                    });
+
+                    // Effects Volume Control
+                    p.spawn(get_text_node(&asset_server, "Effects Volume"));
+                    p.spawn((
+                        VolumeControl::Effects,
+                        Button,
+                        Interaction::default(),
+                        Node {
+                            width: Val::Px(200.0),
+                            height: Val::Px(20.0),
+                            margin: UiRect::all(Val::Px(8.0)),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.4, 0.4, 0.4)),
+                    ))
+                    .with_children(|p| {
+                        p.spawn((
+                            Slider,
+                            Node {
+                                width: Val::Percent(50.0), // Initial value
+                                height: Val::Percent(100.0),
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgb(1.0, 1.0, 1.0)),
+                        ));
+                    });
 
                     p.spawn(get_button_node(
                         &asset_server,
@@ -84,4 +142,46 @@ fn settings_setup(
         });
 }
 
-fn settings() {}
+fn settings(
+    interaction_query: Query<(
+        &Interaction,
+        &VolumeControl,
+        &Children,
+        &GlobalTransform,
+        &ComputedNode,
+    )>,
+    mut node_query: Query<&mut Node>,
+    mut settings: ResMut<Settings>,
+    windows: Query<&Window>,
+) {
+    let window = windows.single();
+
+    for (interaction, volume_control, children, global_transform, computed_node) in
+        interaction_query.iter()
+    {
+        if let Interaction::Pressed = interaction {
+            if let Some(cursor_position) = window.cursor_position() {
+                let node_width = computed_node.size()[0] * computed_node.inverse_scale_factor();
+                let half_width = node_width / 2.0;
+                let left_side = global_transform.translation().x
+                    * computed_node.inverse_scale_factor()
+                    - half_width;
+                let relative_x = cursor_position.x - left_side;
+                let volume = (relative_x / node_width).clamp(0.0, 1.0);
+
+                // Update the slider visual
+                if let Some(slider) = children.first() {
+                    if let Ok(mut slider_node) = node_query.get_mut(*slider) {
+                        slider_node.width = Val::Percent(volume * 100.0);
+                    }
+                }
+
+                // Update the settings
+                match volume_control {
+                    VolumeControl::Music => settings.set_music_volume(volume),
+                    VolumeControl::Effects => settings.set_effect_volume(volume),
+                }
+            }
+        }
+    }
+}
