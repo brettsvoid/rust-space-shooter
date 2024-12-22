@@ -13,7 +13,7 @@ use crate::{
     sprite_animation::{update_animations, AnimationConfig},
 };
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 pub enum EnemyType {
     Small,
     Medium,
@@ -69,9 +69,45 @@ const ENEMY_SPAWN_CHANCE: u32 = 1;
 const ENEMY_SPAWN_DENOMINATOR: u32 = 25;
 const ENEMY_GUTTER: f32 = 4.0;
 
-// This resource tracks the amount of enemies score
-#[derive(Resource, Deref, DerefMut)]
-pub struct EnemyCount(usize);
+// This resource tracks the count of each enemy type
+#[derive(Resource)]
+pub struct EnemyCount {
+    pub small: usize,
+    pub medium: usize,
+    pub large: usize,
+}
+
+impl EnemyCount {
+    pub fn total(&self) -> usize {
+        self.small + self.medium + self.large
+    }
+
+    pub fn increment(&mut self, enemy_type: &EnemyType) {
+        match enemy_type {
+            EnemyType::Small => self.small += 1,
+            EnemyType::Medium => self.medium += 1,
+            EnemyType::Large => self.large += 1,
+        }
+    }
+
+    pub fn decrement(&mut self, enemy_type: &EnemyType) {
+        match enemy_type {
+            EnemyType::Small => self.small = self.small.saturating_sub(1),
+            EnemyType::Medium => self.medium = self.medium.saturating_sub(1),
+            EnemyType::Large => self.large = self.large.saturating_sub(1),
+        }
+    }
+}
+
+impl Default for EnemyCount {
+    fn default() -> Self {
+        Self {
+            small: 0,
+            medium: 0,
+            large: 0,
+        }
+    }
+}
 
 pub struct EnemiesPlugin;
 
@@ -79,7 +115,7 @@ impl Plugin for EnemiesPlugin {
     fn build(&self, app: &mut App) {
         app
             //.add_systems(Startup, spawn_enemies)
-            .insert_resource(EnemyCount(0))
+            .init_resource::<EnemyCount>()
             .add_systems(OnEnter(GameState::Playing), enemies_setup)
             .add_systems(
                 Update,
@@ -102,8 +138,8 @@ pub struct Enemy {
 }
 
 fn enemies_setup(mut enemy_count: ResMut<EnemyCount>) {
-    // Ensure enemy count starts at 0 when entering Playing state
-    **enemy_count = 0;
+    // Reset all counts to 0 when entering Playing state
+    *enemy_count = EnemyCount::default();
 }
 
 fn spawn_enemies(
@@ -115,7 +151,7 @@ fn spawn_enemies(
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     // Only spawn new enemies if we haven't reached the maximum
-    if **enemy_count >= MAX_ENEMIES {
+    if enemy_count.total() >= MAX_ENEMIES {
         return;
     }
 
@@ -174,7 +210,7 @@ fn spawn_enemies(
         AnimationConfig::new(0, 1, config.sprite_fps),
     ));
 
-    **enemy_count += 1;
+    enemy_count.increment(&enemy_type);
 }
 
 fn apply_enemy_movement(
@@ -201,13 +237,13 @@ fn calculate_enemy_x_position(window: &Window, column: u32, size_x: f32) -> f32 
 fn remove_fallen_enemies(
     mut commands: Commands,
     mut enemy_count: ResMut<EnemyCount>,
-    query: Query<(Entity, &Transform), With<Enemy>>,
+    query: Query<(Entity, &Transform, &Enemy), With<Enemy>>,
     window: Single<&Window>,
 ) {
-    for (entity, transform) in &query {
+    for (entity, transform, enemy) in &query {
         if transform.translation.y < -window.height() / 2.0 {
             commands.entity(entity).despawn();
-            **enemy_count -= 1;
+            enemy_count.decrement(&enemy.enemy_type);
         }
     }
 }
@@ -225,7 +261,7 @@ fn reset_enemies(
             commands.entity(entity).despawn();
         }
 
-        // Reset the enemy count to 0
-        **enemy_count = 0;
+        // Reset all counts to 0
+        *enemy_count = EnemyCount::default();
     }
 }

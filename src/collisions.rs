@@ -8,7 +8,7 @@ use bevy::{
 
 use crate::{
     components::{Bounds, Bullet},
-    enemies::{Enemy, EnemyType},
+    enemies::{Enemy, EnemyCount, EnemyType},
     game_state::GameState,
     player::Player,
     scoreboard::Score,
@@ -83,6 +83,7 @@ fn check_player_bullet_enemy_collision(
     mut commands: Commands,
     enemy_query: Query<(Entity, &Transform, &Bounds, &Enemy, &Collider), With<Enemy>>,
     bullet_query: Query<(Entity, &Transform), With<Bullet>>,
+    mut enemy_count: ResMut<EnemyCount>,
     mut score: ResMut<Score>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
@@ -119,6 +120,8 @@ fn check_player_bullet_enemy_collision(
 
                 commands.entity(bullet_entity).despawn();
                 commands.entity(enemy_entity).despawn();
+                enemy_count.decrement(&enemy.enemy_type);
+
                 **score += match enemy.enemy_type {
                     EnemyType::Large => 10,
                     EnemyType::Medium => 5,
