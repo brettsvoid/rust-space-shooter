@@ -6,7 +6,9 @@ use components::Volume;
 use game::{GamePlugin, GameRestartEvent};
 use game_state::{GameState, GameStatePlugin};
 use menu::menu::MenuPlugin;
+use settings::Settings;
 
+mod audio;
 mod background;
 mod collisions;
 mod components;
@@ -17,9 +19,12 @@ mod game_state;
 mod menu;
 mod player;
 mod scoreboard;
+mod settings;
 mod sprite_animation;
 mod stepping;
 mod systems;
+
+use audio::GameAudioPlugin;
 
 const BACKGROUND_COLOR: Color = Color::srgb(0.0, 0.0, 0.0); // Changed to black since we'll use shader
 
@@ -29,10 +34,8 @@ fn main() {
         .add_plugins((DefaultPlugins, EntropyPlugin::<WyRand>::default()))
         .add_plugins(FpsOverlayPlugin::default())
         .insert_resource(ClearColor(BACKGROUND_COLOR))
-        .insert_resource(Volume {
-            effects: 5,
-            music: 5,
-        })
+        .insert_resource(Settings::new())
+        .add_plugins(GameAudioPlugin)
         .add_plugins((
             GameStatePlugin,
             MenuPlugin,

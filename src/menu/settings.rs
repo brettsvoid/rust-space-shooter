@@ -32,7 +32,6 @@ fn settings_setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
-    volume: Res<Volume>,
 ) {
     let text_font = asset_server.load("../assets/atari_games.ttf");
 
@@ -72,16 +71,6 @@ fn settings_setup(
                     ));
 
                     p.spawn(get_text_node(&asset_server, "Volume"));
-                    // for volume_setting in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] {
-                    //     let mut entity = p.spawn((get_button_node(
-                    //         &asset_server,
-                    //         &mut texture_atlases,
-                    //         Volume(volume_setting),
-                    //     ),));
-                    //     if *volume == Volume(volume_setting) {
-                    //         entity.insert(SelectedOption);
-                    //     }
-                    // }
 
                     p.spawn(get_button_node(
                         &asset_server,
