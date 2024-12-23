@@ -7,7 +7,7 @@ use rand::prelude::*;
 
 use crate::{
     collisions::Collider,
-    components::{Bounds, MovementSpeed},
+    components::{Bounds, Health, MovementSpeed},
     game::GameRestartEvent,
     game_state::GameState,
     sprite_animation::{update_animations, AnimationConfig},
@@ -28,6 +28,7 @@ struct EnemyConfig {
     sprite_fps: u8,
     speed: f32,
     scale: f32,
+    health: i32,
 }
 
 impl EnemyType {
@@ -41,6 +42,7 @@ impl EnemyType {
                 sprite_fps: 12,
                 speed: 100.0,
                 scale: 2.0,
+                health: 2,
             },
             EnemyType::Medium => EnemyConfig {
                 sprite_path: "../assets/enemy-medium.png",
@@ -48,8 +50,9 @@ impl EnemyType {
                 sprite_columns: 2,
                 sprite_rows: 1,
                 sprite_fps: 12,
-                speed: 75.0,
+                speed: 50.0,
                 scale: 2.0,
+                health: 8,
             },
             EnemyType::Large => EnemyConfig {
                 sprite_path: "../assets/enemy-large.png",
@@ -57,14 +60,15 @@ impl EnemyType {
                 sprite_columns: 2,
                 sprite_rows: 1,
                 sprite_fps: 12,
-                speed: 50.0,
+                speed: 25.0,
                 scale: 2.0,
+                health: 20,
             },
         }
     }
 }
 
-const MAX_ENEMIES: usize = 50;
+const MAX_ENEMIES: usize = 40;
 const ENEMY_SPAWN_CHANCE: u32 = 1;
 const ENEMY_SPAWN_DENOMINATOR: u32 = 25;
 const ENEMY_GUTTER: f32 = 4.0;
@@ -195,6 +199,7 @@ fn spawn_enemies(
         Collider,
         Transform::from_translation(spawn_position),
         MovementSpeed(config.speed),
+        Health(config.health),
         Bounds {
             size: size * config.scale,
         },

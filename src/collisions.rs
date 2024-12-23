@@ -5,7 +5,7 @@ use bevy::{
 
 use crate::{
     audio::GameSounds,
-    components::{Bounds, Bullet},
+    components::{Bounds, Bullet, Health},
     enemies::{Enemy, EnemyCount, EnemyType},
     game_state::GameState,
     player::Player,
@@ -79,7 +79,10 @@ pub fn check_player_enemy_collision(
 
 fn check_player_bullet_enemy_collision(
     mut commands: Commands,
-    enemy_query: Query<(Entity, &Transform, &Bounds, &Enemy, &Collider), With<Enemy>>,
+    mut enemy_query: Query<
+        (Entity, &Transform, &Bounds, &Enemy, &mut Health, &Collider),
+        With<Enemy>,
+    >,
     bullet_query: Query<(Entity, &Transform), With<Bullet>>,
     mut enemy_count: ResMut<EnemyCount>,
     mut score: ResMut<Score>,
@@ -92,7 +95,11 @@ fn check_player_bullet_enemy_collision(
     let explosion_atlas = TextureAtlasLayout::from_grid(UVec2::splat(16), 5, 1, None, None);
     let explosion_atlas_handle = texture_atlases.add(explosion_atlas);
 
-    for (enemy_entity, enemy_transform, enemy_bounds, enemy, _) in &enemy_query {
+    let player_damage = 1;
+
+    for (enemy_entity, enemy_transform, enemy_bounds, enemy, mut enemy_health, _) in
+        &mut enemy_query
+    {
         for (bullet_entity, bullet_transform) in &bullet_query {
             let collision = is_collision(
                 Aabb2d::new(
@@ -102,36 +109,42 @@ fn check_player_bullet_enemy_collision(
                 Aabb2d::new(bullet_transform.translation.truncate(), Vec2::splat(8.0)),
             );
             if let Some(_collision) = collision {
-                // Play explosion sound
-                commands.spawn((
-                    AudioPlayer::new(game_sounds.explosion.clone()),
-                    PlaybackSettings::DESPAWN,
-                ));
+                let new_health = enemy_health.0 - player_damage;
+                enemy_health.0 = new_health;
 
-                commands.spawn((
-                    Explosion,
-                    Transform::from_translation(enemy_transform.translation), // keep above bullet entities
-                    Sprite {
-                        image: explosion_image.clone(),
-                        texture_atlas: Some(TextureAtlas {
-                            layout: explosion_atlas_handle.clone(),
-                            index: 0,
-                        }),
-                        custom_size: Some(Vec2::splat(16.0) * 2.0),
-                        ..default()
-                    },
-                    AnimationConfig::new(0, 4, SPRITE_FPS),
-                ));
+                if new_health <= 0 {
+                    // Play explosion sound
+                    commands.spawn((
+                        AudioPlayer::new(game_sounds.explosion.clone()),
+                        PlaybackSettings::DESPAWN,
+                    ));
+
+                    commands.spawn((
+                        Explosion,
+                        Transform::from_translation(enemy_transform.translation), // keep above bullet entities
+                        Sprite {
+                            image: explosion_image.clone(),
+                            texture_atlas: Some(TextureAtlas {
+                                layout: explosion_atlas_handle.clone(),
+                                index: 0,
+                            }),
+                            custom_size: Some(Vec2::splat(16.0) * 2.0),
+                            ..default()
+                        },
+                        AnimationConfig::new(0, 4, SPRITE_FPS),
+                    ));
+
+                    commands.entity(enemy_entity).despawn();
+                    enemy_count.decrement(&enemy.enemy_type);
+
+                    **score += match enemy.enemy_type {
+                        EnemyType::Large => 10,
+                        EnemyType::Medium => 5,
+                        EnemyType::Small => 2,
+                    }
+                }
 
                 commands.entity(bullet_entity).despawn();
-                commands.entity(enemy_entity).despawn();
-                enemy_count.decrement(&enemy.enemy_type);
-
-                **score += match enemy.enemy_type {
-                    EnemyType::Large => 10,
-                    EnemyType::Medium => 5,
-                    EnemyType::Small => 2,
-                }
             }
         }
     }

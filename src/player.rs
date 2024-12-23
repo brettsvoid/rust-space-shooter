@@ -7,7 +7,7 @@ use bevy::{
 use crate::{
     audio::GameSounds,
     collisions::Collider,
-    components::{Bounds, Bullet, MovementInput, MovementSpeed, Shoot},
+    components::{Bounds, Bullet, Health, MovementInput, MovementSpeed, Shoot},
     game_state::GameState,
     menu::menu::MenuState,
     settings::Settings,
@@ -106,6 +106,7 @@ fn spawn_player(
         },
         MovementSpeed(PLAYER_SPEED),
         Bounds { size: size * 2.0 },
+        Health(10),
         PlayerState::default(),
         PrevPlayerState::default(),
         Collider,

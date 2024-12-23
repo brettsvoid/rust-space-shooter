@@ -38,3 +38,6 @@ impl Shoot {
 
 #[derive(Component)]
 pub struct Bullet;
+
+#[derive(Component)]
+pub struct Health(pub i32);
