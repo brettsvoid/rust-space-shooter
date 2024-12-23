@@ -1,5 +1,5 @@
 use background::BackgroundPlugin;
-use bevy::prelude::*;
+use bevy::{prelude::*, window::WindowResolution};
 use bevy_dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy_rand::prelude::*;
 use game::{GamePlugin, GameRestartEvent};
@@ -25,12 +25,22 @@ mod systems;
 
 use audio::GameAudioPlugin;
 
-const BACKGROUND_COLOR: Color = Color::srgb(0.0, 0.0, 0.0); // Changed to black since we'll use shader
+const BACKGROUND_COLOR: Color = Color::srgb(0.0, 0.0, 0.0); // Changed to black since we'll use a shader
 
 fn main() {
     // NOTE: Common resolution that most monitors scale well with is 640x360px
+    let resolution = Vec2::new(640., 360.) * 2.;
     App::new()
-        .add_plugins((DefaultPlugins, EntropyPlugin::<WyRand>::default()))
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    resolution: WindowResolution::new(resolution.x, resolution.y),
+                    ..default()
+                }),
+                ..default()
+            }),
+            EntropyPlugin::<WyRand>::default(),
+        ))
         .add_plugins(FpsOverlayPlugin::default())
         .insert_resource(ClearColor(BACKGROUND_COLOR))
         .insert_resource(Settings::new())
@@ -59,10 +69,6 @@ fn main() {
 fn setup(mut commands: Commands) {
     // Camera
     commands.spawn(Camera2d);
-
-    // Sound
-    // let ball_collision_sound = asset_server.load("sounds/breakout_collision.ogg");
-    // commands.insert_resource(CollisionSound(ball_collision_sound));
 }
 
 fn handle_exit(
