@@ -29,6 +29,7 @@ struct EnemyConfig {
     speed: f32,
     scale: f32,
     health: i32,
+    spawn_weight: f32,
 }
 
 impl EnemyType {
@@ -43,6 +44,7 @@ impl EnemyType {
                 speed: 100.0,
                 scale: 2.0,
                 health: 2,
+                spawn_weight: 8.0,
             },
             EnemyType::Medium => EnemyConfig {
                 sprite_path: "../assets/enemy-medium.png",
@@ -53,6 +55,7 @@ impl EnemyType {
                 speed: 50.0,
                 scale: 2.0,
                 health: 8,
+                spawn_weight: 0.4,
             },
             EnemyType::Large => EnemyConfig {
                 sprite_path: "../assets/enemy-large.png",
@@ -63,6 +66,7 @@ impl EnemyType {
                 speed: 25.0,
                 scale: 2.0,
                 health: 20,
+                spawn_weight: 0.1,
             },
         }
     }
@@ -70,7 +74,7 @@ impl EnemyType {
 
 const MAX_ENEMIES: usize = 40;
 const ENEMY_SPAWN_CHANCE: u32 = 1;
-const ENEMY_SPAWN_DENOMINATOR: u32 = 25;
+const ENEMY_SPAWN_DENOMINATOR: u32 = 100; // higher means less enemies
 const ENEMY_GUTTER: f32 = 4.0;
 
 // This resource tracks the count of each enemy type
@@ -164,11 +168,23 @@ fn spawn_enemies(
         return;
     }
 
-    // Randomly choose enemy type
-    let enemy_type = match rng.gen_range(0..=2) {
-        0 => EnemyType::Small,
-        1 => EnemyType::Medium,
-        _ => EnemyType::Large,
+    let enemy_type = {
+        let weights = [
+            (EnemyType::Large, EnemyType::Large.config().spawn_weight),
+            (EnemyType::Medium, EnemyType::Medium.config().spawn_weight),
+            (EnemyType::Small, EnemyType::Small.config().spawn_weight),
+        ];
+        let total_weight: f32 = weights.iter().map(|(_, w)| w).sum();
+        let roll = rng.gen::<f32>() * total_weight;
+
+        let mut selected = EnemyType::Small;
+        for (enemy_type, weight) in weights.iter() {
+            if roll <= *weight {
+                selected = *enemy_type;
+                break;
+            }
+        }
+        selected
     };
 
     let config = enemy_type.config();

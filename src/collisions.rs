@@ -138,8 +138,8 @@ fn check_player_bullet_enemy_collision(
                     enemy_count.decrement(&enemy.enemy_type);
 
                     **score += match enemy.enemy_type {
-                        EnemyType::Large => 10,
-                        EnemyType::Medium => 5,
+                        EnemyType::Large => 40,
+                        EnemyType::Medium => 12,
                         EnemyType::Small => 2,
                     }
                 }
