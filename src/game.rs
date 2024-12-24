@@ -24,8 +24,8 @@ impl Plugin for GamePlugin {
     }
 }
 
-#[derive(Component)]
-struct GameScreen;
+// #[derive(Component)]
+// struct GameScreen;
 
 #[derive(Event, Default)]
 pub struct GameRestartEvent;

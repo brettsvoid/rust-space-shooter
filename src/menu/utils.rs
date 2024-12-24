@@ -1,8 +1,8 @@
 use bevy::{prelude::*, ui::widget::NodeImageMode};
 
-use super::menu::MenuButtonAction;
+use crate::theme::Palette;
 
-const TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
+use super::menu::MenuButtonAction;
 
 #[derive(Bundle)]
 struct MenuButton {
@@ -40,7 +40,7 @@ impl Default for MenuText {
         Self {
             text: Text::default(),
             font: TextFont::default(),
-            color: TextColor(TEXT_COLOR),
+            color: TextColor(Palette::TEXT_PRIMARY),
         }
     }
 }

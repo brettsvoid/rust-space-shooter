@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::systems::despawn_screen;
+use crate::{systems::despawn_screen, theme::Palette};
 
 use super::{
     menu::{MenuButtonAction, MenuState},
@@ -18,8 +18,6 @@ impl Plugin for MainMenuPlugin {
 
 #[derive(Component)]
 struct MainMenuScreen;
-
-const TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
 
 fn main_menu_setup(
     mut commands: Commands,
@@ -52,7 +50,7 @@ fn main_menu_setup(
                             font_size: 48.0,
                             ..default()
                         },
-                        TextColor(TEXT_COLOR),
+                        TextColor(Palette::TEXT_PRIMARY),
                         Node {
                             margin: UiRect::new(
                                 Val::Px(16.0),

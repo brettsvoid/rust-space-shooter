@@ -21,8 +21,8 @@ const SPRITE_ROWS: u32 = 5;
 const SPRITE_FPS: u8 = 12;
 
 // TODO: start very slow and gain speed with leveling up
-const PLAYER_SPEED: f32 = 500.0;
-const PLAYER_SHOOT_COOLDOWN: f32 = 0.2;
+const PLAYER_SPEED: f32 = 200.0;
+const PLAYER_SHOOT_COOLDOWN: f32 = 0.4;
 
 // Sprite indices for different states
 const IDLE_SPRITES: (usize, usize) = (0, 1);
@@ -105,7 +105,7 @@ fn spawn_player(
             direction: Vec2::ZERO,
         },
         MovementSpeed(PLAYER_SPEED),
-        Bounds { size: size * 2.0 },
+        Bounds { size: size * 1.8 },
         Health(10),
         PlayerState::default(),
         PrevPlayerState::default(),

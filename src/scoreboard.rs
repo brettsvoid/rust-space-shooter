@@ -1,10 +1,9 @@
 use bevy::prelude::*;
 
-use crate::game_state::GameState;
+use crate::{game_state::GameState, theme::Palette};
 
 const SCOREBOARD_FONT_SIZE: f32 = 33.0;
 const SCOREBOARD_TEXT_PADDING: Val = Val::Px(5.0);
-const TEXT_COLOR: Color = Color::srgb(0.5, 0.5, 1.0);
 const SCORE_COLOR: Color = Color::srgb(1.0, 0.5, 0.5);
 
 pub struct ScoreboardPlugin;
@@ -12,7 +11,10 @@ pub struct ScoreboardPlugin;
 impl Plugin for ScoreboardPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Score(0))
-            .add_systems(OnEnter(GameState::Playing), (cleanup_scoreboard, setup, reset_score))
+            .add_systems(
+                OnEnter(GameState::Playing),
+                (cleanup_scoreboard, setup, reset_score),
+            )
             .add_systems(
                 Update,
                 update_scoreboard.run_if(in_state(GameState::Playing)),
@@ -45,7 +47,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 font_size: SCOREBOARD_FONT_SIZE,
                 ..default()
             },
-            TextColor(TEXT_COLOR),
+            TextColor(Palette::TEXT_PRIMARY),
             ScoreboardUi,
             Node {
                 position_type: PositionType::Absolute,
@@ -69,10 +71,7 @@ fn reset_score(mut score: ResMut<Score>) {
     score.0 = 0;
 }
 
-fn cleanup_scoreboard(
-    mut commands: Commands,
-    query: Query<Entity, With<ScoreboardUi>>,
-) {
+fn cleanup_scoreboard(mut commands: Commands, query: Query<Entity, With<ScoreboardUi>>) {
     for entity in query.iter() {
         commands.entity(entity).despawn_recursive();
     }

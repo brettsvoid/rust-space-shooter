@@ -20,8 +20,9 @@ mod player;
 mod scoreboard;
 mod settings;
 mod sprite_animation;
-mod stepping;
+//mod stepping;
 mod systems;
+mod theme;
 
 use audio::GameAudioPlugin;
 
@@ -52,12 +53,12 @@ fn main() {
             BackgroundPlugin,
             game_over::GameOverPlugin,
         ))
-        .add_plugins(
-            stepping::SteppingPlugin::default()
-                .add_schedule(Update)
-                .add_schedule(FixedUpdate)
-                .at(Val::Percent(35.0), Val::Percent(50.0)),
-        )
+        // .add_plugins(
+        //     stepping::SteppingPlugin::default()
+        //         .add_schedule(Update)
+        //         .add_schedule(FixedUpdate)
+        //         .at(Val::Percent(35.0), Val::Percent(50.0)),
+        // )
         .add_systems(Startup, setup)
         // Add our gameplay simulation systems to the fixed timestep schedule
         // which runs at 64 Hz by default

@@ -1,6 +1,6 @@
 use bevy::{prelude::*, ui::UiRect};
 
-use crate::{settings::Settings, systems::despawn_screen};
+use crate::{settings::Settings, systems::despawn_screen, theme::Palette};
 
 use super::{
     menu::{MenuButtonAction, MenuState},
@@ -30,8 +30,6 @@ enum VolumeControl {
 
 #[derive(Component)]
 struct Slider;
-
-const TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
 
 fn settings_setup(
     mut commands: Commands,
@@ -63,7 +61,7 @@ fn settings_setup(
                             font_size: 48.0,
                             ..default()
                         },
-                        TextColor(TEXT_COLOR),
+                        TextColor(Palette::TEXT_PRIMARY),
                         Node {
                             margin: UiRect::new(
                                 Val::Px(16.0),
