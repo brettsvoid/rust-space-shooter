@@ -1,6 +1,6 @@
 use background::BackgroundPlugin;
 use bevy::{prelude::*, window::WindowResolution};
-use bevy_dev_tools::fps_overlay::FpsOverlayPlugin;
+//use bevy_dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy_rand::prelude::*;
 use game::{GamePlugin, GameRestartEvent};
 use game_state::{GameState, GameStatePlugin};
@@ -42,7 +42,7 @@ fn main() {
             }),
             EntropyPlugin::<WyRand>::default(),
         ))
-        .add_plugins(FpsOverlayPlugin::default())
+        //.add_plugins(FpsOverlayPlugin::default())
         .insert_resource(ClearColor(BACKGROUND_COLOR))
         .insert_resource(Settings::new())
         .add_plugins(GameAudioPlugin)
