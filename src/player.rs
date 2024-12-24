@@ -7,7 +7,7 @@ use bevy::{
 use crate::{
     audio::GameSounds,
     collisions::Collider,
-    components::{Bounds, Bullet, Health, MovementInput, MovementSpeed, Shoot},
+    components::{Bounds, Bullet, Health, MovementInput, MovementSpeed, PlayerStats, Shoot},
     game_state::GameState,
     menu::menu::MenuState,
     settings::Settings,
@@ -101,6 +101,7 @@ fn spawn_player(
 
     commands.spawn((
         Player,
+        PlayerStats::default(),
         MovementInput {
             direction: Vec2::ZERO,
         },
@@ -138,11 +139,15 @@ fn handle_player_movement(
 }
 
 fn apply_player_movement(
-    mut query: Populated<(&MovementInput, &MovementSpeed, &mut Transform), With<Player>>,
+    mut query: Populated<
+        (&MovementInput, &MovementSpeed, &PlayerStats, &mut Transform),
+        With<Player>,
+    >,
     time: Res<Time>,
 ) {
-    let (input, speed, mut transform) = query.single_mut();
-    let movement = input.direction * speed.0 * time.delta_secs();
+    let (input, speed, player_stats, mut transform) = query.single_mut();
+    let speed = speed.0 * player_stats.speed;
+    let movement = input.direction * speed * time.delta_secs();
     transform.translation += movement.extend(0.0);
 }
 
@@ -292,12 +297,12 @@ fn spawn_bullets(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
-    mut query: Query<(&mut Shoot, &Transform), With<Player>>,
+    mut query: Query<(&mut Shoot, &PlayerStats, &Transform), With<Player>>,
     time: Res<Time>,
     game_sounds: Res<GameSounds>,
     settings: Res<Settings>,
 ) {
-    let (mut shoot, transform) = query.single_mut();
+    let (mut shoot, player_stats, transform) = query.single_mut();
     shoot.timer.tick(time.delta());
     if !shoot.is_shooting {
         return;
@@ -344,7 +349,8 @@ fn spawn_bullets(
             AnimationConfig::new(2, 3, SPRITE_FPS),
             Transform::from_translation(transform.translation),
         ));
-        shoot.timer = Shoot::timer_from_cooldown(PLAYER_SHOOT_COOLDOWN);
+        let adjusted_cooldown = shoot.get_adjusted_cooldown(player_stats.fire_rate);
+        shoot.timer = Shoot::timer_from_cooldown(adjusted_cooldown);
     }
 }
 

@@ -4,6 +4,7 @@ use crate::collisions::CollisionsPlugin;
 use crate::enemies::EnemiesPlugin;
 use crate::game_state::GameState;
 use crate::player::PlayerPlugin;
+use crate::powerups::PowerupsPlugin;
 use crate::scoreboard::ScoreboardPlugin;
 //use crate::systems::despawn_screen;
 
@@ -18,6 +19,7 @@ impl Plugin for GamePlugin {
                 PlayerPlugin,
                 EnemiesPlugin,
                 CollisionsPlugin,
+                PowerupsPlugin,
             ));
         //.add_systems(OnExit(GameState::Playing), despawn_screen::<GameScreen>);
         //TODO: handle exiting to the game to main menu

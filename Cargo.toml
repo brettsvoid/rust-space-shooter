@@ -15,6 +15,9 @@ rand = "0.8.5"
 [features]
 bevy_debug_stepping = ["bevy/bevy_debug_stepping"]
 
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+
 [profile.dev]
 opt-level = 1
 

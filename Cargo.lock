@@ -3671,6 +3671,7 @@ dependencies = [
  "bevy",
  "bevy_dev_tools",
  "bevy_rand",
+ "getrandom",
  "log",
  "rand",
 ]

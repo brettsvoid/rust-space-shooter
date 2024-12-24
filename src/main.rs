@@ -17,6 +17,7 @@ mod game_over;
 mod game_state;
 mod menu;
 mod player;
+mod powerups;
 mod scoreboard;
 mod settings;
 mod sprite_animation;

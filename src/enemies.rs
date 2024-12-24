@@ -13,13 +13,6 @@ use crate::{
     sprite_animation::{update_animations, AnimationConfig},
 };
 
-#[derive(Component, Clone, Copy)]
-pub enum EnemyType {
-    Small,
-    Medium,
-    Large,
-}
-
 struct EnemyConfig {
     sprite_path: &'static str,
     sprite_size: UVec2,
@@ -32,6 +25,12 @@ struct EnemyConfig {
     spawn_weight: f32,
 }
 
+#[derive(Component, Clone, Copy)]
+pub enum EnemyType {
+    Small,
+    Medium,
+    Large,
+}
 impl EnemyType {
     fn config(&self) -> EnemyConfig {
         match self {
