@@ -21,10 +21,18 @@
   </head>
   <body>
     <canvas id="glcanvas" tabindex="1"></canvas>
-    <!-- Minified and statically hosted version of https://github.com/not-fl3/macroquad/blob/master/js/mq_js_bundle.js -->
-    <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
-    <script>
-      load("rust-space-shooter.wasm");
+    <script type="module">
+      import init from "./rust-space-shooter.js";
+
+      init().catch((error) => {
+        if (
+          !error.message.startsWith(
+            "Using exceptions for control flow, don't mind me. This isn't actually an error!",
+          )
+        ) {
+          throw error;
+        }
+      });
     </script>
   </body>
 </html>
