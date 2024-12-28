@@ -129,11 +129,6 @@ fn spawn_powerups(
 
         let config = powerup_type.config();
         let size = config.sprite_size.as_vec2();
-        let size_x = size.x * config.scale;
-        let column_count = (window.width() / (size_x)) as u32;
-        let column = rng.gen_range(0..column_count);
-        let x_pos = calculate_powerup_x_position(&window, column, size_x);
-        //let spawn_position = Vec3::new(x_pos, window.height() / 2.0 + size_x / 2.0, 1.0);
         let spawn_position = event.0.position;
 
         let texture = asset_server.load_with_settings(
@@ -187,17 +182,6 @@ fn apply_powerup_movement(
         let movement = Vec2::new(0.0, -speed.0 * time.delta_secs());
         transform.translation += movement.extend(0.0);
     }
-}
-
-/// Calculate the x position for an powerup in a given column
-fn calculate_powerup_x_position(window: &Window, column: u32, size_x: f32) -> f32 {
-    let width = window.width();
-    let column_count = (width / (size_x)) as u32;
-    let gutter_count = column_count - 1;
-    let content_width = column_count as f32 * size_x + gutter_count as f32;
-    let margin = (width - content_width) / 2.0;
-
-    (column as f32 * (size_x)) + size_x / 2.0 + margin - width / 2.0
 }
 
 fn remove_fallen_powerups(

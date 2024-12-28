@@ -4,16 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = {version = "0.15.0", features = ["file_watcher", "shader_format_glsl", "wav"]}
+bevy = {version = "0.15.0", features = ["shader_format_glsl", "wav"]}
 bevy_dev_tools = "0.15.0"
 bevy_rand = { version = "0.8.0", features = ["wyrand"] }
-# macroquad = { version = "0.4.13", features = ["audio"] }
-# macroquad-particles = "0.2.2"
 log = { version = "*", features = ["max_level_debug", "release_max_level_warn"] }
 rand = "0.8.5"
 
 [features]
+default = ["dynamic_linking", "bevy_debug_stepping", "file_watcher"]
+dynamic_linking = ["bevy/dynamic_linking"]
 bevy_debug_stepping = ["bevy/bevy_debug_stepping"]
+file_watcher = ["bevy/file_watcher"]
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
