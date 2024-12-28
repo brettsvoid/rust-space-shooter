@@ -3,3 +3,4 @@ highscore.dat
 .DS_Store
 .aider*
 .env
+.dist

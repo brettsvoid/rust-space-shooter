@@ -102,8 +102,6 @@ fn powerups_setup(mut powerup_count: ResMut<PowerupCount>) {
 fn spawn_powerups(
     mut commands: Commands,
     mut powerup_count: ResMut<PowerupCount>,
-    mut rng: ResMut<GlobalEntropy<WyRand>>,
-    window: Single<&Window>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     mut enemy_destroyed_event: EventReader<EnemyDestroyedEvent>,

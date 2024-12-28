@@ -329,7 +329,7 @@ fn spawn_bullets(
         commands.spawn((
             AudioPlayer::new(game_sounds.shoot.clone()),
             PlaybackSettings {
-                mode: PlaybackMode::Once,
+                mode: PlaybackMode::Despawn,
                 volume: Volume::new(settings.effect_volume),
                 ..default()
             },
