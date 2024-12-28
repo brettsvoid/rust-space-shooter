@@ -7,7 +7,7 @@ precision highp float;
 #endif
 
 layout(set = 2, binding = 0) uniform MaterialUniform {
-    vec2 resolution; 
+    vec2 resolution;
     float time;
     float speed;
 };
@@ -31,7 +31,7 @@ float Star(vec2 uv, float flare) {
     rays = max(0., 1. - abs(uv.x * uv.y * 1000.));
     m += rays * .3 * flare;
 
-    m *= smoothstep(1., .2, d);
+    m *= smoothstep(1., -1., d);
 
     return m;
 }
@@ -77,9 +77,10 @@ void main() {
     for (float i = 0.; i < 1.; i += 1. / num_layers) {
         float depth = fract(i + t);
         float scale = mix(12., .5, depth);
-        float fade = depth * smoothstep(1., .2, depth);
+        float fade = depth * smoothstep(1., -1., depth);
         col += StarLayer(uv * scale + i * 453.2) * fade;
     }
 
     outColor = vec4(col, 1.0);
 }
+
