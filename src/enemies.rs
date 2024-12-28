@@ -25,7 +25,7 @@ struct EnemyConfig {
     spawn_weight: f32,
 }
 
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, Debug)]
 pub enum EnemyType {
     Small,
     Medium,
@@ -70,6 +70,14 @@ impl EnemyType {
         }
     }
 }
+
+pub struct EnemyDestroyedData {
+    pub enemy_type: EnemyType,
+    pub position: Vec3,
+}
+
+#[derive(Event)]
+pub struct EnemyDestroyedEvent(pub EnemyDestroyedData);
 
 const MAX_ENEMIES: usize = 40;
 const ENEMY_SPAWN_CHANCE: u32 = 1;

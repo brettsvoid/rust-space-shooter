@@ -5,11 +5,10 @@ use bevy::{
 
 use crate::{
     audio::GameSounds,
-    components::{Bounds, Bullet, Health, PlayerStats},
-    enemies::{Enemy, EnemyCount, EnemyType},
+    components::{Bounds, Bullet, Health},
+    enemies::{Enemy, EnemyCount, EnemyDestroyedData, EnemyDestroyedEvent, EnemyType},
     game_state::GameState,
     player::Player,
-    powerups::{Powerup, PowerupCount, PowerupType},
     scoreboard::Score,
     sprite_animation::AnimationConfig,
 };
@@ -17,15 +16,17 @@ use crate::{
 pub struct CollisionsPlugin;
 impl Plugin for CollisionsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<CollisionEvent>().add_systems(
-            Update,
-            (
-                (check_player_enemy_collision).run_if(in_state(GameState::Playing)),
-                (check_player_bullet_enemy_collision).run_if(in_state(GameState::Playing)),
-                //(check_player_powerup_collision).run_if(in_state(GameState::Playing)),
-                update_explosion_animation,
-            ),
-        );
+        app.add_event::<CollisionEvent>()
+            .add_event::<EnemyDestroyedEvent>()
+            .add_systems(
+                Update,
+                (
+                    (check_player_enemy_collision).run_if(in_state(GameState::Playing)),
+                    (check_player_bullet_enemy_collision).run_if(in_state(GameState::Playing)),
+                    //(check_player_powerup_collision).run_if(in_state(GameState::Playing)),
+                    update_explosion_animation,
+                ),
+            );
     }
 }
 
@@ -91,6 +92,7 @@ fn check_player_bullet_enemy_collision(
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     game_sounds: Res<GameSounds>,
+    mut enemy_destroyed_event: EventWriter<EnemyDestroyedEvent>,
 ) {
     let explosion_image = asset_server.load("../assets/explosion.png");
 
@@ -143,68 +145,15 @@ fn check_player_bullet_enemy_collision(
                         EnemyType::Large => 40,
                         EnemyType::Medium => 12,
                         EnemyType::Small => 2,
-                    }
+                    };
+
+                    enemy_destroyed_event.send(EnemyDestroyedEvent(EnemyDestroyedData {
+                        enemy_type: enemy.enemy_type,
+                        position: enemy_transform.translation,
+                    }));
                 }
 
                 commands.entity(bullet_entity).despawn();
-            }
-        }
-    }
-}
-
-pub fn check_player_powerup_collision(
-    mut commands: Commands,
-    player_query: Query<(Entity, &Transform, &Bounds, &Collider), With<Player>>,
-    powerup_query: Query<(Entity, &Transform, &Bounds, &Collider, &Powerup), With<Powerup>>,
-    mut powerup_count: ResMut<PowerupCount>,
-    mut collision_events: EventWriter<CollisionEvent>,
-    mut player_stats: Query<&mut PlayerStats, With<Player>>,
-) {
-    let (_player_entity, player_transform, player_bounds, _) = &player_query.single();
-    let player_aabb2d = Aabb2d::new(
-        player_transform.translation.truncate(),
-        player_bounds.size / 2.0,
-    );
-
-    for (powerup_entity, powerup_transform, powerup_bounds, _, powerup) in &powerup_query {
-        let collision = is_collision(
-            player_aabb2d,
-            Aabb2d::new(
-                powerup_transform.translation.truncate(),
-                powerup_bounds.size / 2.0,
-            ),
-        );
-
-        if let Some(_collision) = collision {
-            // Sends a collision event so that other systems can react to the collision
-            collision_events.send_default();
-
-            if let Ok(mut stats) = player_stats.get_single_mut() {
-                match powerup.powerup_type {
-                    // PowerupType::HealthBoost => {
-                    //     stats.health.0 = (stats.health.0 + 1).min(3); // Max health of 3
-                    // },
-                    PowerupType::FireRate => {
-                        stats.fire_rate *= 2.0; // 100% fire rate boost
-                    }
-                    PowerupType::Speed => {
-                        stats.speed *= 1.5; // 50% speed boost
-                    } // PowerupType::WeaponUpgrade => {
-                      //     stats.weapon_level = (stats.weapon_level + 1).min(3); // Max weapon level of 3
-                      // },
-                }
-
-                // Play powerup sound
-                // commands.spawn((
-                //     AudioPlayer::new(asset_server.load("sounds/powerup.ogg")),
-                //     PlaybackSettings::DESPAWN,
-                // ));
-                //
-                println!("stats {:?}", stats);
-
-                // Despawn the powerup after collection
-                commands.entity(powerup_entity).despawn();
-                powerup_count.0 -= 1;
             }
         }
     }

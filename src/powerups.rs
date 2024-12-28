@@ -8,15 +8,14 @@ use rand::prelude::*;
 use crate::{
     collisions::Collider,
     components::{Bounds, MovementSpeed, PlayerStats},
+    enemies::{EnemyDestroyedEvent, EnemyType},
     game::GameRestartEvent,
     game_state::GameState,
     player::Player,
     sprite_animation::{update_animations, AnimationConfig},
 };
 
-const MAX_POWERUPS: usize = 1;
-const POWERUPS_SPAWN_CHANCE: u32 = 1;
-const POWERUPS_SPAWN_DENOMINATOR: u32 = 10; // higher means less powerups
+const MAX_POWERUPS: usize = 3;
 
 struct PowerupsConfig {
     sprite_path: &'static str,
@@ -107,72 +106,77 @@ fn spawn_powerups(
     window: Single<&Window>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    mut enemy_destroyed_event: EventReader<EnemyDestroyedEvent>,
 ) {
     // Only spawn new powerups if we haven't reached the maximum
     if powerup_count.0 >= MAX_POWERUPS {
         return;
     }
 
-    // Random chance to spawn a new powerup
-    if rng.gen_range(0..POWERUPS_SPAWN_DENOMINATOR) > POWERUPS_SPAWN_CHANCE {
-        return;
+    for event in enemy_destroyed_event.read() {
+        let enemy_type = event.0.enemy_type;
+        if let EnemyType::Small = enemy_type {
+            continue;
+        };
+
+        println!("enemy type {:?}", enemy_type);
+
+        let powerup_type = match enemy_type {
+            EnemyType::Medium => PowerupType::Speed,
+            EnemyType::Large => PowerupType::FireRate,
+            _ => PowerupType::Speed,
+        };
+
+        let config = powerup_type.config();
+        let size = config.sprite_size.as_vec2();
+        let size_x = size.x * config.scale;
+        let column_count = (window.width() / (size_x)) as u32;
+        let column = rng.gen_range(0..column_count);
+        let x_pos = calculate_powerup_x_position(&window, column, size_x);
+        //let spawn_position = Vec3::new(x_pos, window.height() / 2.0 + size_x / 2.0, 1.0);
+        let spawn_position = event.0.position;
+
+        let texture = asset_server.load_with_settings(
+            config.sprite_path,
+            |settings: &mut ImageLoaderSettings| {
+                settings.sampler = ImageSampler::nearest();
+            },
+        );
+        let layout = TextureAtlasLayout::from_grid(
+            config.sprite_size,
+            config.sprite_columns,
+            config.sprite_rows,
+            None,
+            None,
+        );
+        let texture_atlas_layout = texture_atlas_layouts.add(layout);
+
+        let animation_config = match powerup_type {
+            PowerupType::FireRate => AnimationConfig::new(0, 1, config.sprite_fps),
+            PowerupType::Speed => AnimationConfig::new(2, 3, config.sprite_fps),
+        };
+        commands.spawn((
+            Powerup { powerup_type },
+            Collider,
+            Transform::from_translation(spawn_position),
+            MovementSpeed(config.speed),
+            Bounds {
+                size: size * config.scale,
+            },
+            Sprite {
+                image: texture,
+                texture_atlas: Some(TextureAtlas {
+                    layout: texture_atlas_layout,
+                    index: 0,
+                }),
+                custom_size: Some(size * config.scale),
+                ..default()
+            },
+            animation_config,
+        ));
+
+        powerup_count.0 += 1;
     }
-
-    let powerup_type = {
-        let weights = [PowerupType::FireRate, PowerupType::Speed];
-        let roll: usize = rng.gen_range(0..weights.len());
-
-        weights[roll]
-    };
-
-    let config = powerup_type.config();
-    let size = config.sprite_size.as_vec2();
-    let size_x = size.x * config.scale;
-    let column_count = (window.width() / (size_x)) as u32;
-    let column = rng.gen_range(0..column_count);
-    let x_pos = calculate_powerup_x_position(&window, column, size_x);
-    let spawn_position = Vec3::new(x_pos, window.height() / 2.0 + size_x / 2.0, 1.0);
-
-    let texture = asset_server.load_with_settings(
-        config.sprite_path,
-        |settings: &mut ImageLoaderSettings| {
-            settings.sampler = ImageSampler::nearest();
-        },
-    );
-    let layout = TextureAtlasLayout::from_grid(
-        config.sprite_size,
-        config.sprite_columns,
-        config.sprite_rows,
-        None,
-        None,
-    );
-    let texture_atlas_layout = texture_atlas_layouts.add(layout);
-
-    let animation_config = match powerup_type {
-        PowerupType::FireRate => AnimationConfig::new(0, 1, config.sprite_fps),
-        PowerupType::Speed => AnimationConfig::new(2, 3, config.sprite_fps),
-    };
-    commands.spawn((
-        Powerup { powerup_type },
-        Collider,
-        Transform::from_translation(spawn_position),
-        MovementSpeed(config.speed),
-        Bounds {
-            size: size * config.scale,
-        },
-        Sprite {
-            image: texture,
-            texture_atlas: Some(TextureAtlas {
-                layout: texture_atlas_layout,
-                index: 0,
-            }),
-            custom_size: Some(size * config.scale),
-            ..default()
-        },
-        animation_config,
-    ));
-
-    powerup_count.0 += 1;
 }
 
 fn apply_powerup_movement(
@@ -233,10 +237,10 @@ fn handle_powerup_collisions(
                 //     stats.health.0 = (stats.health.0 + 1).min(3); // Max health of 3
                 // },
                 PowerupType::FireRate => {
-                    player_stats.fire_rate *= 4.0; // 200% fire rate boost
+                    player_stats.fire_rate *= 1.5;
                 }
                 PowerupType::Speed => {
-                    player_stats.speed *= 1.5; // 50% speed boost
+                    player_stats.speed *= 1.2;
                 } // PowerupType::WeaponUpgrade => {
                   //     stats.weapon_level = (stats.weapon_level + 1).min(3); // Max weapon level of 3
                   // },

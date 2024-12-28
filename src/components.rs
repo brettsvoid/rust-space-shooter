@@ -1,3 +1,5 @@
+use bevy::prelude::*;
+
 #[derive(Component, Clone, Debug)]
 pub struct PlayerStats {
     pub fire_rate: f32,
@@ -23,10 +25,6 @@ impl Default for PlayerStats {
         }
     }
 }
-
-use std::time::Duration;
-
-use bevy::prelude::*;
 
 /// Component for handling movement input direction
 #[derive(Component)]
