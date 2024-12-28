@@ -5,17 +5,6 @@ pub struct PlayerStats {
     pub fire_rate: f32,
     pub speed: f32,
 }
-impl PlayerStats {
-    pub fn new(fire_rate: f32, speed: f32) -> Self {
-        Self { fire_rate, speed }
-    }
-
-    // Reset stats to default values (useful when powerups wear off)
-    pub fn reset(&mut self) {
-        self.fire_rate = 1.0;
-        self.speed = 1.0;
-    }
-}
 
 impl Default for PlayerStats {
     fn default() -> Self {

@@ -2,8 +2,6 @@ use bevy::{
     image::{ImageLoaderSettings, ImageSampler},
     prelude::*,
 };
-use bevy_rand::prelude::*;
-use rand::prelude::*;
 
 use crate::{
     collisions::Collider,
