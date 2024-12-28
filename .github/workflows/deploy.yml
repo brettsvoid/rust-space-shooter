@@ -22,13 +22,19 @@ jobs:
           target: wasm32-unknown-unknown
           override: true
 
+      - name: Install wasm-bindgen
+        uses: jetli/wasm-bindgen-action@v0.2.0
+        with:
+          # Optional version of wasm-bindgen to install(eg. '0.2.83', 'latest')
+          version: "latest"
+
       - name: Build
         run: cargo build --release --target wasm32-unknown-unknown --no-default-features && wasm-bindgen --no-typescript --target web --out-dir ./dist/ --out-name "rust-space-shooter" ./target/wasm32-unknown-unknown/release/rust-space-shooter.wasm
 
       - name: Prepare Deployment Directory
         run: |
           mkdir -p ./deploy/assets
-          cp ./out/* ./deploy/
+          cp ./dist/* ./deploy/
           cp index.html ./deploy/
           cp -r assets/ ./deploy/
 
