@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = {version = "0.15.0", features = ["shader_format_glsl", "wav"]}
+bevy = {version = "0.15.0", features = ["shader_format_glsl"]}
 bevy_dev_tools = "0.15.0"
 bevy_rand = { version = "0.8.0", features = ["wyrand"] }
 log = { version = "*", features = ["max_level_debug", "release_max_level_warn"] }

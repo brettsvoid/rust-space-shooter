@@ -1,4 +1,5 @@
 use bevy::{
+    audio::Volume,
     math::bounding::{Aabb2d, BoundingVolume, IntersectsVolume},
     prelude::*,
 };
@@ -10,6 +11,7 @@ use crate::{
     game_state::GameState,
     player::Player,
     scoreboard::Score,
+    settings::Settings,
     sprite_animation::AnimationConfig,
 };
 
@@ -23,7 +25,6 @@ impl Plugin for CollisionsPlugin {
                 (
                     (check_player_enemy_collision).run_if(in_state(GameState::Playing)),
                     (check_player_bullet_enemy_collision).run_if(in_state(GameState::Playing)),
-                    //(check_player_powerup_collision).run_if(in_state(GameState::Playing)),
                     update_explosion_animation,
                 ),
             );
@@ -93,6 +94,7 @@ fn check_player_bullet_enemy_collision(
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     game_sounds: Res<GameSounds>,
     mut enemy_destroyed_event: EventWriter<EnemyDestroyedEvent>,
+    settings: Res<Settings>,
 ) {
     let explosion_image = asset_server.load("../assets/explosion.png");
 
@@ -117,14 +119,13 @@ fn check_player_bullet_enemy_collision(
                 enemy_health.0 = new_health;
 
                 if new_health <= 0 {
-                    // Play explosion sound
-                    commands.spawn((
-                        AudioPlayer::new(game_sounds.explosion.clone()),
-                        PlaybackSettings::DESPAWN,
-                    ));
-
                     commands.spawn((
                         Explosion,
+                        AudioPlayer::new(game_sounds.explosion.clone()),
+                        PlaybackSettings {
+                            volume: Volume::new(settings.effect_volume),
+                            ..default()
+                        },
                         Transform::from_translation(enemy_transform.translation), // keep above bullet entities
                         Sprite {
                             image: explosion_image.clone(),

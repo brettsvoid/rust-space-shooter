@@ -9,7 +9,7 @@ pub struct Settings {
 impl Settings {
     pub fn new() -> Settings {
         Settings {
-            music_volume: 0.0,
+            music_volume: 0.5,
             effect_volume: 0.5,
         }
     }

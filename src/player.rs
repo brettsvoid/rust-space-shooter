@@ -325,18 +325,14 @@ fn spawn_bullets(
 
     let size = BULLET_SPRITE_SIZE.as_vec2();
     if shoot.timer.finished() {
-        // Play shoot sound
         commands.spawn((
+            Bullet,
+            // Play shoot sound
             AudioPlayer::new(game_sounds.shoot.clone()),
             PlaybackSettings {
-                mode: PlaybackMode::Despawn,
                 volume: Volume::new(settings.effect_volume),
                 ..default()
             },
-        ));
-
-        commands.spawn((
-            Bullet,
             Sprite {
                 image: texture,
                 texture_atlas: Some(TextureAtlas {
