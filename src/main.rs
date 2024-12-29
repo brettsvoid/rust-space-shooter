@@ -1,5 +1,5 @@
 use background::BackgroundPlugin;
-use bevy::{prelude::*, window::WindowResolution};
+use bevy::prelude::*;
 //use bevy_dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy_rand::prelude::*;
 use game::{GamePlugin, GameRestartEvent};
@@ -31,18 +31,9 @@ const BACKGROUND_COLOR: Color = Color::srgb(0.0, 0.0, 0.0); // Changed to black 
 
 fn main() {
     // NOTE: Common resolution that most monitors scale well with is 640x360px
-    let resolution = Vec2::new(640., 360.) * 2.;
+    // let resolution = Vec2::new(640., 360.) * 2.;
     App::new()
-        .add_plugins((
-            DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    resolution: WindowResolution::new(resolution.x, resolution.y),
-                    ..default()
-                }),
-                ..default()
-            }),
-            EntropyPlugin::<WyRand>::default(),
-        ))
+        .add_plugins((DefaultPlugins, EntropyPlugin::<WyRand>::default()))
         //.add_plugins(FpsOverlayPlugin::default())
         .insert_resource(ClearColor(BACKGROUND_COLOR))
         .insert_resource(Settings::new())
@@ -89,13 +80,8 @@ fn handle_exit(
             _ => (),
         }
     }
-    if keyboard.just_released(KeyCode::KeyR) {
-        match current_game_state.get() {
-            GameState::GameOver => {
-                next_game_state.set(GameState::Playing);
-                game_restart_event.send_default();
-            }
-            _ => (),
-        }
+    if keyboard.just_released(KeyCode::KeyR) && current_game_state.get() == &GameState::GameOver {
+        next_game_state.set(GameState::Playing);
+        game_restart_event.send_default();
     }
 }

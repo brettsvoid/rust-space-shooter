@@ -60,7 +60,8 @@ impl Plugin for PlayerPlugin {
                         .chain(),
                 )
                     .run_if(in_state(GameState::Playing)),
-            );
+            )
+            .add_systems(Update, remove_out_of_bound_bullets);
     }
 }
 
@@ -354,5 +355,17 @@ fn apply_bullet_movement(mut query: Populated<&mut Transform, With<Bullet>>, tim
     for mut transform in query.iter_mut() {
         let movement = Vec2::new(0.0, BULLET_SPEED) * time.delta_secs();
         transform.translation += movement.extend(0.0);
+    }
+}
+
+fn remove_out_of_bound_bullets(
+    mut commands: Commands,
+    query: Query<(Entity, &Transform), With<Bullet>>,
+    window: Single<&Window>,
+) {
+    for (entity, transform) in &query {
+        if transform.translation.y > window.height() / 2.0 {
+            commands.entity(entity).despawn();
+        }
     }
 }
