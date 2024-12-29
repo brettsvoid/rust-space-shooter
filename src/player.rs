@@ -8,8 +8,8 @@ use crate::{
     audio::GameSounds,
     collisions::Collider,
     components::{Bounds, Bullet, Health, MovementInput, MovementSpeed, PlayerStats, Shoot},
+    game::GameRestartEvent,
     game_state::GameState,
-    menu::menu::MenuState,
     settings::Settings,
     sprite_animation::{update_animations, AnimationConfig},
 };
@@ -41,7 +41,7 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(MenuState::Disabled), spawn_player)
+        app.add_systems(OnEnter(GameState::Playing), spawn_player)
             .add_systems(
                 Update,
                 (
@@ -61,7 +61,7 @@ impl Plugin for PlayerPlugin {
                 )
                     .run_if(in_state(GameState::Playing)),
             )
-            .add_systems(Update, remove_out_of_bound_bullets);
+            .add_systems(Update, (remove_out_of_bound_bullets, reset_player));
     }
 }
 
@@ -365,6 +365,20 @@ fn remove_out_of_bound_bullets(
 ) {
     for (entity, transform) in &query {
         if transform.translation.y > window.height() / 2.0 {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn reset_player(
+    mut commands: Commands,
+    mut game_restart_event: EventReader<GameRestartEvent>,
+    query: Query<Entity, With<Player>>,
+) {
+    if !game_restart_event.is_empty() {
+        game_restart_event.clear();
+
+        for entity in &query {
             commands.entity(entity).despawn();
         }
     }

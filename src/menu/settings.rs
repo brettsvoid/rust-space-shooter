@@ -35,6 +35,7 @@ fn settings_setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
+    settings: Res<Settings>,
 ) {
     let text_font = asset_server.load("../assets/atari_games.ttf");
 
@@ -91,7 +92,7 @@ fn settings_setup(
                         p.spawn((
                             Slider,
                             Node {
-                                width: Val::Percent(50.0), // Initial value
+                                width: Val::Percent(100.0 * settings.music_volume), // Initial value
                                 height: Val::Percent(100.0),
                                 ..default()
                             },
@@ -117,7 +118,7 @@ fn settings_setup(
                         p.spawn((
                             Slider,
                             Node {
-                                width: Val::Percent(50.0), // Initial value
+                                width: Val::Percent(100.0 * settings.effect_volume), // Initial value
                                 height: Val::Percent(100.0),
                                 ..default()
                             },
