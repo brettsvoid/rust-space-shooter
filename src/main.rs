@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy_rand::prelude::*;
 use game::{GamePlugin, GameRestartEvent};
 use game_state::{GameState, GameStatePlugin};
+use hud::hud::HudPlugin;
 use menu::menu::MenuPlugin;
 use settings::Settings;
 
@@ -12,9 +13,11 @@ mod background;
 mod collisions;
 mod components;
 mod enemies;
+mod explosion;
 mod game;
 mod game_over;
 mod game_state;
+mod hud;
 mod menu;
 mod player;
 mod powerups;
@@ -41,6 +44,7 @@ fn main() {
         .add_plugins((
             GameStatePlugin,
             MenuPlugin,
+            HudPlugin,
             GamePlugin,
             BackgroundPlugin,
             game_over::GameOverPlugin,

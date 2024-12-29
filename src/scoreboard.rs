@@ -13,7 +13,7 @@ impl Plugin for ScoreboardPlugin {
         app.insert_resource(Score(0))
             .add_systems(
                 OnEnter(GameState::Playing),
-                (cleanup_scoreboard, setup, reset_score),
+                ((cleanup_scoreboard, setup).chain(), reset_score),
             )
             .add_systems(
                 Update,

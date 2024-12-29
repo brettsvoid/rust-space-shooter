@@ -2,6 +2,8 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
+pub const SPRITE_FPS: u8 = 12;
+
 #[derive(Component)]
 pub struct AnimationConfig {
     pub first_sprite_index: usize,

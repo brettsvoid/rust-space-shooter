@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::collisions::CollisionsPlugin;
 use crate::enemies::EnemiesPlugin;
+use crate::explosion::ExplosionPlugin;
 use crate::game_state::GameState;
 use crate::player::PlayerPlugin;
 use crate::powerups::PowerupsPlugin;
@@ -20,6 +21,7 @@ impl Plugin for GamePlugin {
                 EnemiesPlugin,
                 CollisionsPlugin,
                 PowerupsPlugin,
+                ExplosionPlugin,
             ));
         //.add_systems(OnExit(GameState::Playing), despawn_screen::<GameScreen>);
         //TODO: handle exiting to the game to main menu

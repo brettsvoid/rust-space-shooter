@@ -58,6 +58,7 @@ impl Plugin for PlayerPlugin {
                         confine_player_movement,
                     )
                         .chain(),
+                    check_player_health,
                 )
                     .run_if(in_state(GameState::Playing)),
             )
@@ -381,5 +382,15 @@ fn reset_player(
         for entity in &query {
             commands.entity(entity).despawn();
         }
+    }
+}
+
+fn check_player_health(
+    player_health: Single<&Health, With<Player>>,
+    mut game_state: ResMut<NextState<GameState>>,
+) {
+    if player_health.0 <= 0 {
+        // Set the game state to GameOver
+        game_state.set(GameState::GameOver);
     }
 }

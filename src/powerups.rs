@@ -115,8 +115,6 @@ fn spawn_powerups(
             continue;
         };
 
-        println!("enemy type {:?}", enemy_type);
-
         let powerup_type = match enemy_type {
             EnemyType::Medium => PowerupType::Speed,
             EnemyType::Large => PowerupType::FireRate,
