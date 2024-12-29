@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::game_state::GameState;
+use crate::AppState;
 
 use super::main_menu::MainMenuPlugin;
 use super::settings::SettingsPlugin;
@@ -9,11 +9,11 @@ pub struct MenuPlugin;
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<MenuState>()
-            .add_systems(OnEnter(GameState::MainMenu), menu_setup)
+            .add_systems(OnEnter(AppState::Menu), menu_setup)
             .add_plugins((MainMenuPlugin, SettingsPlugin))
             .add_systems(
                 Update,
-                (menu_action, button_system).run_if(in_state(GameState::MainMenu)),
+                (menu_action, button_system).run_if(in_state(AppState::Menu)),
             );
     }
 }
@@ -26,7 +26,6 @@ pub enum MenuState {
     Settings,
     //SettingsDisplay,
     //SettingsSound,
-    Disabled,
 }
 
 // All actions that can be triggered from a button click
@@ -57,8 +56,8 @@ fn menu_action(
         (Changed<Interaction>, With<Button>),
     >,
     mut app_exit_events: EventWriter<AppExit>,
+    mut app_state: ResMut<NextState<AppState>>,
     mut menu_state: ResMut<NextState<MenuState>>,
-    mut game_state: ResMut<NextState<GameState>>,
 ) {
     for (interaction, menu_button_action) in &interaction_query {
         if *interaction == Interaction::Pressed {
@@ -67,8 +66,7 @@ fn menu_action(
                     app_exit_events.send(AppExit::Success);
                 }
                 MenuButtonAction::Play => {
-                    game_state.set(GameState::Playing);
-                    menu_state.set(MenuState::Disabled);
+                    app_state.set(AppState::Game);
                 }
                 MenuButtonAction::Settings => {
                     menu_state.set(MenuState::Settings);

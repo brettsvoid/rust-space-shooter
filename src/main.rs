@@ -19,6 +19,7 @@ mod game_over;
 mod game_state;
 mod hud;
 mod menu;
+mod paused;
 mod player;
 mod powerups;
 mod scoreboard;
@@ -32,6 +33,13 @@ use audio::GameAudioPlugin;
 
 const BACKGROUND_COLOR: Color = Color::srgb(0.0, 0.0, 0.0); // Changed to black since we'll use a shader
 
+#[derive(States, Clone, Copy, Default, Eq, PartialEq, Debug, Hash)]
+pub enum AppState {
+    #[default]
+    Menu,
+    Game,
+}
+
 fn main() {
     // NOTE: Common resolution that most monitors scale well with is 640x360px
     // let resolution = Vec2::new(640., 360.) * 2.;
@@ -40,6 +48,7 @@ fn main() {
         //.add_plugins(FpsOverlayPlugin::default())
         .insert_resource(ClearColor(BACKGROUND_COLOR))
         .insert_resource(Settings::new())
+        .init_state::<AppState>()
         .add_plugins(GameAudioPlugin)
         .add_plugins((
             GameStatePlugin,
@@ -48,6 +57,7 @@ fn main() {
             GamePlugin,
             BackgroundPlugin,
             game_over::GameOverPlugin,
+            paused::PausedPlugin,
         ))
         // .add_plugins(
         //     stepping::SteppingPlugin::default()

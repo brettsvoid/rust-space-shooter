@@ -11,6 +11,7 @@ use crate::{
     game::GameRestartEvent,
     game_state::GameState,
     sprite_animation::{update_animations, AnimationConfig},
+    AppState,
 };
 
 struct EnemyConfig {
@@ -85,13 +86,12 @@ const ENEMY_SPAWN_DENOMINATOR: u32 = 100; // higher means less enemies
 const ENEMY_GUTTER: f32 = 4.0;
 
 // This resource tracks the count of each enemy type
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct EnemyCount {
     pub small: usize,
     pub medium: usize,
     pub large: usize,
 }
-
 impl EnemyCount {
     pub fn total(&self) -> usize {
         self.small + self.medium + self.large
@@ -114,16 +114,6 @@ impl EnemyCount {
     }
 }
 
-impl Default for EnemyCount {
-    fn default() -> Self {
-        Self {
-            small: 0,
-            medium: 0,
-            large: 0,
-        }
-    }
-}
-
 pub struct EnemiesPlugin;
 
 impl Plugin for EnemiesPlugin {
@@ -131,7 +121,7 @@ impl Plugin for EnemiesPlugin {
         app
             //.add_systems(Startup, spawn_enemies)
             .init_resource::<EnemyCount>()
-            .add_systems(OnEnter(GameState::Playing), enemies_setup)
+            .add_systems(OnEnter(AppState::Game), enemies_setup)
             .add_systems(
                 Update,
                 (
@@ -140,7 +130,7 @@ impl Plugin for EnemiesPlugin {
                     remove_fallen_enemies,
                     update_animations::<Enemy>,
                 )
-                    .run_if(in_state(GameState::Playing)),
+                    .run_if(in_state(AppState::Game).and(in_state(GameState::Playing))),
             )
             .add_systems(Update, reset_enemies);
     }

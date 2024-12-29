@@ -3,18 +3,18 @@ use bevy::prelude::*;
 use crate::collisions::CollisionsPlugin;
 use crate::enemies::EnemiesPlugin;
 use crate::explosion::ExplosionPlugin;
-use crate::game_state::GameState;
 use crate::player::PlayerPlugin;
 use crate::powerups::PowerupsPlugin;
 use crate::scoreboard::ScoreboardPlugin;
+use crate::AppState;
 //use crate::systems::despawn_screen;
 
 pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<GameRestartEvent>()
-            .add_systems(OnEnter(GameState::Playing), game_setup)
-            .add_systems(Update, game.run_if(in_state(GameState::Playing)))
+            .add_systems(OnEnter(AppState::Game), game_setup)
+            .add_systems(Update, game.run_if(in_state(AppState::Game)))
             .add_plugins((
                 ScoreboardPlugin,
                 PlayerPlugin,

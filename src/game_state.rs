@@ -10,7 +10,6 @@ impl Plugin for GameStatePlugin {
 #[derive(States, Clone, Copy, Default, Eq, PartialEq, Debug, Hash)]
 pub enum GameState {
     #[default]
-    MainMenu,
     Playing,
     Paused,
     GameOver,

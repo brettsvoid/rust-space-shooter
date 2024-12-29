@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{systems::despawn_screen, theme::Palette};
+use crate::{systems::despawn_screen, theme::Palette, AppState};
 
 use super::{
     menu::{MenuButtonAction, MenuState},
@@ -12,7 +12,8 @@ impl Plugin for MainMenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(MenuState::Main), main_menu_setup)
             .add_systems(Update, main_menu.run_if(in_state(MenuState::Main)))
-            .add_systems(OnExit(MenuState::Main), despawn_screen::<MainMenuScreen>);
+            .add_systems(OnExit(MenuState::Main), despawn_screen::<MainMenuScreen>)
+            .add_systems(OnExit(AppState::Menu), despawn_screen::<MainMenuScreen>);
     }
 }
 

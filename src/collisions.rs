@@ -74,8 +74,6 @@ pub fn check_player_enemy_collision(
                 let new_player_health = player_health.0 - enemy_health.0;
                 let new_enemy_health = enemy_health.0 - player_health.0;
 
-                println!("Player health {}", new_player_health);
-                println!("Enemy health {}", new_enemy_health);
                 player_health.0 = new_player_health;
                 enemy_health.0 = new_enemy_health;
             }

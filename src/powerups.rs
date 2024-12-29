@@ -11,6 +11,7 @@ use crate::{
     game_state::GameState,
     player::Player,
     sprite_animation::{update_animations, AnimationConfig},
+    AppState,
 };
 
 const MAX_POWERUPS: usize = 3;
@@ -64,19 +65,14 @@ pub struct Powerup {
     pub powerup_type: PowerupType,
 }
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct PowerupCount(pub usize);
-impl Default for PowerupCount {
-    fn default() -> Self {
-        Self(0)
-    }
-}
 
 pub struct PowerupsPlugin;
 impl Plugin for PowerupsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PowerupCount>()
-            .add_systems(OnEnter(GameState::Playing), powerups_setup)
+            .add_systems(OnEnter(AppState::Game), powerups_setup)
             .add_systems(
                 Update,
                 (
@@ -86,7 +82,7 @@ impl Plugin for PowerupsPlugin {
                     handle_powerup_collisions,
                     update_animations::<Powerup>,
                 )
-                    .run_if(in_state(GameState::Playing)),
+                    .run_if(in_state(AppState::Game).and(in_state(GameState::Playing))),
             )
             .add_systems(Update, reset_powerups);
     }
@@ -156,7 +152,10 @@ fn spawn_powerups(
                 image: texture,
                 texture_atlas: Some(TextureAtlas {
                     layout: texture_atlas_layout,
-                    index: 0,
+                    index: match powerup_type {
+                        PowerupType::FireRate => 0,
+                        PowerupType::Speed => 2,
+                    },
                 }),
                 custom_size: Some(size * config.scale),
                 ..default()

@@ -2,19 +2,16 @@ use bevy::prelude::*;
 
 use crate::{
     components::{Health, PlayerStats},
-    game_state::GameState,
     player::Player,
     theme::Palette,
+    AppState,
 };
 
 pub struct HudPlugin;
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            OnEnter(GameState::Playing),
-            (cleanup_hud, setup_hud).chain(),
-        )
-        .add_systems(Update, (update_hud).run_if(in_state(GameState::Playing)));
+        app.add_systems(OnEnter(AppState::Game), (cleanup_hud, setup_hud).chain())
+            .add_systems(Update, (update_hud).run_if(in_state(AppState::Game)));
     }
 }
 

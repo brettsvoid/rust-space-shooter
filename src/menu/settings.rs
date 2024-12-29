@@ -1,6 +1,6 @@
 use bevy::{prelude::*, ui::UiRect};
 
-use crate::{settings::Settings, systems::despawn_screen, theme::Palette};
+use crate::{settings::Settings, systems::despawn_screen, theme::Palette, AppState};
 
 use super::{
     menu::{MenuButtonAction, MenuState},
@@ -15,7 +15,8 @@ impl Plugin for SettingsPlugin {
             .add_systems(
                 OnExit(MenuState::Settings),
                 despawn_screen::<SettingsScreen>,
-            );
+            )
+            .add_systems(OnExit(AppState::Menu), despawn_screen::<SettingsScreen>);
     }
 }
 

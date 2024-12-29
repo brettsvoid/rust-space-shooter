@@ -8,10 +8,10 @@ use crate::{
     audio::GameSounds,
     collisions::Collider,
     components::{Bounds, Bullet, Health, MovementInput, MovementSpeed, PlayerStats, Shoot},
-    game::GameRestartEvent,
     game_state::GameState,
     settings::Settings,
     sprite_animation::{update_animations, AnimationConfig},
+    AppState,
 };
 
 const SPRITE_SHEET_PATH: &str = "../assets/ship.png";
@@ -41,7 +41,15 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Playing), spawn_player)
+        app.add_systems(OnEnter(AppState::Game), spawn_player)
+            .add_systems(OnExit(AppState::Game), cleanup_player)
+            .add_systems(
+                OnTransition {
+                    exited: GameState::GameOver,
+                    entered: GameState::Playing,
+                },
+                (cleanup_player, spawn_player).chain(),
+            )
             .add_systems(
                 Update,
                 (
@@ -60,9 +68,9 @@ impl Plugin for PlayerPlugin {
                         .chain(),
                     check_player_health,
                 )
-                    .run_if(in_state(GameState::Playing)),
+                    .run_if(in_state(AppState::Game).and(in_state(GameState::Playing))),
             )
-            .add_systems(Update, (remove_out_of_bound_bullets, reset_player));
+            .add_systems(Update, remove_out_of_bound_bullets);
     }
 }
 
@@ -185,11 +193,9 @@ fn update_player_state(
             *prev_state = PrevPlayerState(state.clone());
             *state = PlayerState::MovingRight;
         }
-    } else {
-        if !matches!(*state, PlayerState::Idle) {
-            *prev_state = PrevPlayerState(state.clone());
-            *state = PlayerState::Idle;
-        }
+    } else if !matches!(*state, PlayerState::Idle) {
+        *prev_state = PrevPlayerState(state.clone());
+        *state = PlayerState::Idle;
     }
 }
 
@@ -371,20 +377,6 @@ fn remove_out_of_bound_bullets(
     }
 }
 
-fn reset_player(
-    mut commands: Commands,
-    mut game_restart_event: EventReader<GameRestartEvent>,
-    query: Query<Entity, With<Player>>,
-) {
-    if !game_restart_event.is_empty() {
-        game_restart_event.clear();
-
-        for entity in &query {
-            commands.entity(entity).despawn();
-        }
-    }
-}
-
 fn check_player_health(
     player_health: Single<&Health, With<Player>>,
     mut game_state: ResMut<NextState<GameState>>,
@@ -393,4 +385,9 @@ fn check_player_health(
         // Set the game state to GameOver
         game_state.set(GameState::GameOver);
     }
+}
+
+fn cleanup_player(mut commands: Commands, player: Single<Entity, With<Player>>) {
+    let entity = player.into_inner();
+    commands.entity(entity).despawn();
 }
